@@ -263,7 +263,7 @@
         select.innerHTML = '<option value="">Select...</option>';
         options.forEach(opt => {
           const option = document.createElement('option');
-          option.value = opt.value;
+          option.value = opt.label;
           option.textContent = opt.label;
 
           if (selectedValue && selectedValue === opt.label) {
@@ -286,23 +286,39 @@
 
     loadDialogOptions();
 
-    function closeDialog(data) {
-      // document.getElementById('validateLeadDialog').style.display = 'none';
+    // Parse returnKey passed via pageInput.data
+    function getReturnKey() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("data");
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && parsed.returnKey ? parsed.returnKey : null;
+      } catch (e) { return null; }
+    }
+    const returnKey = getReturnKey();
 
-      // Return null (or empty object) to parent so navigateTo promise resolves
-      // if (window.top.Xrm && window.top.Xrm.Navigation && typeof window.top.Xrm.Navigation.closeDialog === "function") {
-      //   window.top.Xrm.Navigation.closeDialog(null);
-      // } else {
-      //   document.getElementById('validateLeadDialog').style.display = 'none';
-      // }
-
-      // For navigateTo dialogs
-      if (window.top.Mscrm && window.top.Mscrm.PageManager) {
-        window.top.Mscrm.PageManager.closeDialog();
-      } else {
-        // Fallback: just hide it
-        document.getElementById('validateLeadDialog').style.display = 'none';
+    function closeHostDialog(payload) {
+      // Prefer current frame
+      if (window.Xrm && window.Xrm.Navigation && typeof window.Xrm.Navigation.closeDialog === "function") {
+        window.Xrm.Navigation.closeDialog(payload ?? null);
+        return;
       }
+      // Parent
+      if (window.parent && window.parent.Xrm && window.parent.Xrm.Navigation && typeof window.parent.Xrm.Navigation.closeDialog === "function") {
+        window.parent.Xrm.Navigation.closeDialog(payload ?? null);
+        return;
+      }
+      // Top
+      if (window.top && window.top.Xrm && window.top.Xrm.Navigation && typeof window.top.Xrm.Navigation.closeDialog === "function") {
+        window.top.Xrm.Navigation.closeDialog(payload ?? null);
+        return;
+      }
+      // Fallback: close icon (will return null to caller)
+      try {
+        const btn = window.parent?.document?.querySelector("button[data-id='dialogCloseIconButton']");
+        if (btn) btn.click();
+      } catch (e) { }
     }
 
     function submitForm() {
@@ -341,12 +357,13 @@
 
       // alert('Submitted:\n' + JSON.stringify(data, null, 2));
 
-      // Close the dialog and return data to the parent
-      if (window.top.Xrm && window.top.Xrm.Navigation && typeof window.top.Xrm.Navigation.closeDialog === "function") {
-        window.top.Xrm.Navigation.closeDialog(data);
-      } else {
-        closeDialog();
+      // Fallback channel for parent to pick up if returnValue ends up null
+      if (returnKey) {
+        try { sessionStorage.setItem(returnKey, JSON.stringify(data)); } catch (e) { }
       }
+
+      closeHostDialog(data);
+
     }
   </script>
 
