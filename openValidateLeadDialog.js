@@ -101,7 +101,7 @@ async function fetchMetaData(PrimaryControl) {
     // Fetching All Industry from lead
     var IndustryMetaData = await PrimaryControl.getAttribute("tcg_industrynew").getOptions();
     localStorage.removeItem("IndustryMetaData");
-    localStorage.setItem("IndustryMetaData", JSON.stringify(IndustryMetaData)); 
+    localStorage.setItem("IndustryMetaData", JSON.stringify(IndustryMetaData));
 
 }
 
@@ -120,12 +120,13 @@ function openCustomDialog(PrimaryControl) {
     fetchMetaData(PrimaryControl);  // Fetch all meta data
 
 
+    const returnKey = "validateLeadReturn:" + (Xrm.Utility.createGuid ? Xrm.Utility.createGuid() : Date.now().toString());
     var webResourceName = "tcg_ValidateLeadDialogHTML"; // Use the unique name of your HTML web resource
 
     var pageInput = {
         pageType: "webresource",
         webresourceName: webResourceName, // Use your actual web resource name
-        data: null
+        data: JSON.stringify({ returnKey })
     };
     var navigationOptions = {
         target: 2,
@@ -133,16 +134,81 @@ function openCustomDialog(PrimaryControl) {
         height: { value: 64, unit: "%" },
         position: 1
     };
+
+
     Xrm.Navigation.navigateTo(pageInput, navigationOptions).then(
-        function (data) {
-            // Handle submitted data here
-            console.log("Dialog closed with data::", data);
+        function (result) {
+            // Get payload (support fallback if you used the returnKey/sessionStorage pattern)
+            let payload = (result && typeof result === "object") ? result.returnValue : result;
+            if (!payload && returnKey) {
+                try {
+                    const raw = sessionStorage.getItem(returnKey);
+                    if (raw) payload = JSON.parse(raw);
+                } catch (e) { }
+            }
+            try {
+                if (returnKey) {
+                    sessionStorage.removeItem(returnKey);
+                }
+                console.log("Dialog closed with data::", payload);
+
+            } catch (e) { }
+
+            if (!payload) return;
+
+            var formCtx = PrimaryControl;
+
+            // Load metadata cached earlier
+            const legalEntityMeta = JSON.parse(localStorage.getItem("legalEntityMetaData") || "[]");
+            const contractingUnitMeta = JSON.parse(localStorage.getItem("contractingUnitMetaData") || "[]");
+            const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
+            const industryMeta = JSON.parse(localStorage.getItem("IndustryMetaData") || "[]");
+
+            // Map labels -> IDs/values
+            const le = legalEntityMeta.find(x => (x.tcg_owningcompany || "").trim() === (payload.legalEntity || "").trim());
+            const cu = contractingUnitMeta.find(x => (x.msdyn_name || "").trim() === (payload.contractingUnit || "").trim());
+            const msOpt = marketSegmentMeta.find(x => (x.text || "").trim() === (payload.marketSegment || "").trim());
+            const indOpt = industryMeta.find(x => (x.text || "").trim() === (payload.industry || "").trim());
+
+            // Set Lead lookups
+            if (le) {
+                var legalEntityLookup = new Array();
+                legalEntityLookup[0] = new Object();
+                legalEntityLookup[0].id = le.tcg_companyaddressid;
+                legalEntityLookup[0].name = le.tcg_owningcompany || null;
+                legalEntityLookup[0].entityType = "tcg_companyaddress";
+                formCtx.getAttribute("msdyn_company")?.setValue(legalEntityLookup);
+            }
+            if (cu) {
+                var contractingUnitLookup = new Array();
+                contractingUnitLookup[0] = new Object();
+                contractingUnitLookup[0].id = cu.msdyn_organizationalunitid;
+                contractingUnitLookup[0].name = cu.msdyn_name || null;
+                contractingUnitLookup[0].entityType = "msdyn_organizationalunit";
+                formCtx.getAttribute("tcg_contractingunit")?.setValue(contractingUnitLookup);
+            }
+
+            // Set Lead option sets
+            if (msOpt && msOpt.value !== undefined) {
+                formCtx.getAttribute("tcg_marketsegmentnew")?.setValue(parseInt(msOpt.value, 10));
+            }
+            if (indOpt && indOpt.value !== undefined) {
+                formCtx.getAttribute("tcg_industrynew")?.setValue(parseInt(indOpt.value, 10));
+            }
+
+            // Fire change and save Lead
+            formCtx.getAttribute("msdyn_company")?.fireOnChange();
+            formCtx.getAttribute("tcg_contractingunit")?.fireOnChange();
+            formCtx.getAttribute("tcg_marketsegmentnew")?.fireOnChange();
+            formCtx.getAttribute("tcg_industrynew")?.fireOnChange();
+            formCtx.data.entity.save();
+
+
         },
         function (error) {
             console.error(error);
         }
     );
-
     // var pageInput = {
     //     pageType: "control",
     //     controlName: "MscrmControls.UxAgentControl", // Use your actual control name
