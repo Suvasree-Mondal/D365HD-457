@@ -857,6 +857,11 @@
                     : Boolean(leadData.accountNumber);
                 if (isActive && activeRadio) activeRadio.checked = true;
                 if (!isActive && inactiveRadio) inactiveRadio.checked = true;
+                // If explicitly existingAccount === false, disable both radios
+                if (leadData && leadData.existingAccount === false) {
+                    if (activeRadio) activeRadio.disabled = true;
+                    if (inactiveRadio) inactiveRadio.disabled = true;
+                }
                 // Initial accounts load based on defaults
                 updateAccountOptions(defaultAccountName);
             } catch (e) { }
@@ -925,10 +930,13 @@
             }
             ['legalEntity', 'contractingUnit', 'marketSegment', 'industry', 'customerGroupId', 'accountType'].forEach(check);
 
-            // Validate Account Status radio
+            // Validate Account Status radio (skip when radios are disabled)
             const statusErr = document.getElementById('errorAccountStatus');
+            const activeDisabled = document.getElementById('accountStatusActive')?.disabled;
+            const inactiveDisabled = document.getElementById('accountStatusInactive')?.disabled;
+            const radiosDisabled = !!(activeDisabled && inactiveDisabled);
             const statusVal = (document.querySelector('input[name="accountStatus"]:checked') || {}).value;
-            if (!statusVal) {
+            if (!radiosDisabled && !statusVal) {
                 statusErr.textContent = 'Required';
                 valid = false;
             } else {
@@ -956,6 +964,9 @@
             const accountSelect = document.getElementById('account');
             const selectedAccountOption = accountSelect ? accountSelect.options[accountSelect.selectedIndex] : null;
             const selectedAccountId = selectedAccountOption ? (selectedAccountOption.getAttribute('data-id') || '') : '';
+            const activeDisabled = document.getElementById('accountStatusActive')?.disabled;
+            const inactiveDisabled = document.getElementById('accountStatusInactive')?.disabled;
+            const radiosDisabled = !!(activeDisabled && inactiveDisabled);
 
             const data = {
                 legalEntity: document.getElementById('legalEntity').value,
@@ -966,7 +977,7 @@
                 accountType: document.getElementById('accountType').value,
                 account: document.getElementById('account').value,
                 accountId: selectedAccountId,
-                accountStatus: (document.querySelector('input[name="accountStatus"]:checked') || {}).value
+                accountStatus: radiosDisabled ? '' : (document.querySelector('input[name="accountStatus"]:checked') || {}).value
             };
 
             // Fallback channel for parent to pick up if returnValue ends up null
