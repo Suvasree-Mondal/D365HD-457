@@ -272,6 +272,27 @@
         }
 
         /* =========================================================
+    * New: Account status radios + Account field layout
+    * ======================================================= */
+        .full-width {
+            grid-column: span 2;
+        }
+
+        .radio-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .radio-group .radio-option {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+            color: #444444;
+        }
+
+        /* =========================================================
     * Errors
     * ======================================================= */
         .error {
@@ -448,6 +469,25 @@
                         <label for="accountType">Account Type</label>
                         <select id="accountType"></select>
                         <div class="error" id="errorAccountType"></div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Account Status</label>
+                        <div class="radio-group" role="radiogroup" aria-label="Account Status">
+                            <label class="radio-option" for="accountStatusActive">
+                                <input type="radio" id="accountStatusActive" name="accountStatus" value="active">
+                                Active Account
+                            </label>
+                            <label class="radio-option" for="accountStatusInactive">
+                                <input type="radio" id="accountStatusInactive" name="accountStatus" value="inactive">
+                                Inactive Account
+                            </label>
+                        </div>
+                        <div class="error" id="errorAccountStatus"></div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="account">Account</label>
+                        <input id="account" type="text" placeholder="Enter account name" />
+                        <div class="error" id="errorAccount"></div>
                     </div>
                     <div class="dialog-actions">
                         <button type="button" onclick="submitForm()">Submit</button>
@@ -712,6 +752,22 @@
 
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('leadForm').style.display = 'block';
+
+            // Prefill new fields from lead data if available
+            try {
+                const accountInput = document.getElementById('account');
+                if (accountInput && leadData.accountName) {
+                    accountInput.value = leadData.accountName;
+                }
+                const activeRadio = document.getElementById('accountStatusActive');
+                const inactiveRadio = document.getElementById('accountStatusInactive');
+                // Prefer existingAccount boolean if present; otherwise infer from accountNumber presence
+                const isActive = (typeof leadData.existingAccount === 'boolean')
+                    ? leadData.existingAccount
+                    : Boolean(leadData.accountNumber);
+                if (isActive && activeRadio) activeRadio.checked = true;
+                if (!isActive && inactiveRadio) inactiveRadio.checked = true;
+            } catch (e) { }
         }
 
         loadDialogOptions();
@@ -769,6 +825,26 @@
             }
             ['legalEntity', 'contractingUnit', 'marketSegment', 'industry', 'customerGroupId', 'accountType'].forEach(check);
 
+            // Validate Account Status radio
+            const statusErr = document.getElementById('errorAccountStatus');
+            const statusVal = (document.querySelector('input[name="accountStatus"]:checked') || {}).value;
+            if (!statusVal) {
+                statusErr.textContent = 'Required';
+                valid = false;
+            } else {
+                statusErr.textContent = '';
+            }
+
+            // Validate Account text
+            const accountEl = document.getElementById('account');
+            const accountErr = document.getElementById('errorAccount');
+            if (!accountEl.value || !accountEl.value.trim()) {
+                accountErr.textContent = 'Required';
+                valid = false;
+            } else {
+                accountErr.textContent = '';
+            }
+
             if (!valid) {
                 document.getElementById('formError').textContent = 'Please fill all required fields.';
                 return;
@@ -783,7 +859,9 @@
                 marketSegment: document.getElementById('marketSegment').value,
                 industry: document.getElementById('industry').value,
                 customerGroupId: document.getElementById('customerGroupId').value,
-                accountType: document.getElementById('accountType').value
+                accountType: document.getElementById('accountType').value,
+                account: document.getElementById('account').value.trim(),
+                accountStatus: (document.querySelector('input[name="accountStatus"]:checked') || {}).value
             };
 
             // Fallback channel for parent to pick up if returnValue ends up null
