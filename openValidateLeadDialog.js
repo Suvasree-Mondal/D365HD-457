@@ -1,24 +1,35 @@
 // URL of generative page :: /main.aspx?pagetype=control&controlName=MscrmControls.UxAgentControl&data={"refId":"5873dee8-e3bd-4293-a4ce-3fad8254f147"}
 
 
+// it saves the lead record data (6 fields record) in local storage
 async function saveToLocalStorage(leadRecordData) {
     console.log("Lead Record Data :: ", leadRecordData)
 
     localStorage.removeItem("leadRecordData"); // clear the local storage
 
     const leadArray = leadRecordData.map(lead => ({
-        legalEntity: lead["_msdyn_company_value@OData.Community.Display.V1.FormattedValue"] || "",
-        contractingUnit: lead["_tcg_contractingunit_value@OData.Community.Display.V1.FormattedValue"] || "",
-        marketSegment: lead["tcg_marketsegmentnew@OData.Community.Display.V1.FormattedValue"] || "",
-        industry: lead["tcg_industrynew@OData.Community.Display.V1.FormattedValue"] || "",
-        customerGroupId: lead["account1.msdyn_customergroupid@OData.Community.Display.V1.FormattedValue"] || "",
-        accountType: lead["account1.tcg_accounttype@OData.Community.Display.V1.FormattedValue"] || "",
-        accountName: lead["account1.name"] || "",
-        accountNumber: lead["account1.accountnumber"] || ""
+        legalEntity: lead["_msdyn_company_value@OData.Community.Display.V1.FormattedValue"] || false,
+        contractingUnit: lead["_tcg_contractingunit_value@OData.Community.Display.V1.FormattedValue"] || false,
+        marketSegment: lead["tcg_marketsegmentnew@OData.Community.Display.V1.FormattedValue"] || false,
+        industry: lead["tcg_industrynew@OData.Community.Display.V1.FormattedValue"] || false,
+        existingAccount: lead.tcg_existingaccount,
+        customerGroupId: lead["account1.msdyn_customergroupid@OData.Community.Display.V1.FormattedValue"] || lead["_tcg_customergroupidnewone_value@OData.Community.Display.V1.FormattedValue"],
+        accountType: lead["account1.tcg_accounttype@OData.Community.Display.V1.FormattedValue"] || lead["tcg_accounttype@OData.Community.Display.V1.FormattedValue"],
+        accountName: lead["account1.name"] || lead.companyname,
+        accountNumber: lead["account1.accountnumber"] || false,
+        // NAaccountType: lead["tcg_accounttype@OData.Community.Display.V1.FormattedValue"] || false,
+        // NAcustomerGrpId: lead["_tcg_customergroupidnewone_value@OData.Community.Display.V1.FormattedValue"] || false,
+        // NAaccountName: lead.companyname || false,
     }));
 
     localStorage.setItem("leadRecordData", JSON.stringify(leadArray));
 
+}
+
+// saves only meta data like legal entity, contracting unit, industry, market segment
+function saveMetaDataToLocalStorage(key, data){
+    localStorage.removeItem(key);
+    localStorage.setItem(key, data);
 }
 
 async function getLeadRecord(leadId) {
@@ -38,11 +49,14 @@ async function getLeadRecord(leadId) {
         "<attribute name='tcg_contractingunit' />" +
         "<attribute name='msdyn_company' />" +
         "<attribute name='msdyncrm_leadid' />" +
+        "<attribute name='tcg_existingaccount' />"+
+        "<attribute name='tcg_customergroupidnewone' />"+
+        "<attribute name='tcg_accounttype' />"+
         "<order attribute='fullname' descending='false' />" +
         "<filter type='and'>" +
         "<condition attribute='leadid' operator='eq' value='" + leadId + "' />" +
         "</filter>" +
-        "<link-entity name='account' from='accountid' to='tcg_xistingaccount' visible='false' link-type='outer'>" +
+        "<link-entity name='account' from='accountid' to='parentaccountid' visible='false' link-type='outer'>" +
         "<attribute name='accountnumber' />" +
         "<attribute name='name' />" +
         "<attribute name='msdyn_customergroupid' />" +
@@ -56,7 +70,7 @@ async function getLeadRecord(leadId) {
     var leadRecordData = await Xrm.WebApi.retrieveMultipleRecords("lead", fetchXml);
     // console.log("Lead Record Data:: ", leadRecordData);
 
-    saveToLocalStorage(leadRecordData.entities);
+    await saveToLocalStorage(leadRecordData.entities);
 }
 
 async function fetchMetaData(PrimaryControl) {
@@ -74,8 +88,7 @@ async function fetchMetaData(PrimaryControl) {
         "</entity>" +
         "</fetch>";
     var legalEntityMetaData = await Xrm.WebApi.retrieveMultipleRecords("tcg_companyaddress", fetchXmlLegalEntities);
-    localStorage.removeItem("legalEntityMetaData");
-    localStorage.setItem("legalEntityMetaData", JSON.stringify(legalEntityMetaData.entities));
+    saveMetaDataToLocalStorage("legalEntityMetaData", JSON.stringify(legalEntityMetaData.entities));
 
     /* Fetching All Contracting unit */
     var fetchXmlContractingUnits = "?fetchXml=<fetch version='1.0' output-format='xml-platform' mapping='logical' distinct='true'>" +
@@ -90,22 +103,129 @@ async function fetchMetaData(PrimaryControl) {
         "</entity>" +
         "</fetch>";
     var contractingUnitMetaData = await Xrm.WebApi.retrieveMultipleRecords("msdyn_organizationalunit", fetchXmlContractingUnits);
-    localStorage.removeItem("contractingUnitMetaData");
-    localStorage.setItem("contractingUnitMetaData", JSON.stringify(contractingUnitMetaData.entities));
+    saveMetaDataToLocalStorage("contractingUnitMetaData", JSON.stringify(contractingUnitMetaData.entities));
 
     // Fetching All Market Segment from lead
     var marketSegmentMetaData = await PrimaryControl.getAttribute("tcg_marketsegmentnew").getOptions();
-    localStorage.removeItem("marketSegmentMetaData");
-    localStorage.setItem("marketSegmentMetaData", JSON.stringify(marketSegmentMetaData));
+    saveMetaDataToLocalStorage("marketSegmentMetaData", JSON.stringify(marketSegmentMetaData));
 
     // Fetching All Industry from lead
     var IndustryMetaData = await PrimaryControl.getAttribute("tcg_industrynew").getOptions();
-    localStorage.removeItem("IndustryMetaData");
-    localStorage.setItem("IndustryMetaData", JSON.stringify(IndustryMetaData));
+    saveMetaDataToLocalStorage("IndustryMetaData", JSON.stringify(IndustryMetaData));
+
+    // Fetching All Account Type options from lead
+    var accountTypeMetaData = await PrimaryControl.getAttribute("tcg_accounttype").getOptions();
+    saveMetaDataToLocalStorage("accountTypeMetaData", JSON.stringify(accountTypeMetaData));
+
+    // var customerGroupIdMetaData = await 
+    // saveMetaDataToLocalStorage("customerGroupIdMetaData", JSON.stringify(customerGroupIdMetaData));
 
 }
 
-function openCustomDialog(PrimaryControl) {
+
+async function applyPayloadToLead(formCtx, payload) {
+    if (!payload) return;
+
+    const withBraces = id => id ? "{" + (id + "").replace(/[{}]/g, "") + "}" : null;
+
+    // Get lookup targets from CONTROLS (not attributes)
+    const leCtrl = formCtx.getControl("msdyn_company") || formCtx.getAttribute("msdyn_company")?.controls?.get?.(0);
+    const cuCtrl = formCtx.getControl("tcg_contractingunit") || formCtx.getAttribute("tcg_contractingunit")?.controls?.get?.(0);
+    const leTarget = leCtrl?.getEntityTypes?.()[0];                 // e.g. "msdyn_company"
+    const cuTarget = cuCtrl?.getEntityTypes?.()[0];                 // e.g. "msdyn_organizationalunit"
+
+    console.log("leCtrl:", leCtrl, "cuCtrl:", cuCtrl);
+    console.log("leTarget:", leTarget, "cuTarget:", cuTarget);
+
+    // OptionSet metadata (already cached)
+    const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
+    const industryMeta = JSON.parse(localStorage.getItem("IndustryMetaData") || "[]");
+
+    async function resolveCdmCompanyByLabel(label) {
+        if (!label) return null;
+        const esc = label.replace(/'/g, "''");
+
+        // Try by company code first (e.g., "LVUS"), then by name
+        const tries = [
+            `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_companycode eq '${esc}'`)}`,
+            `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_name eq '${esc}'`)}`
+        ];
+
+        for (const q of tries) {
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords("cdm_company", q);
+                if (res.entities?.length) return res.entities[0];
+            } catch (e) { /* continue */ }
+        }
+        return null;
+    }
+
+    async function setLegalEntity(formCtx, label) {
+        if (!label) return;
+        const leAttr = formCtx.getAttribute("msdyn_company");
+        if (!leAttr) return;
+
+        // Resolve the control target (should be "cdm_company")
+        const leCtrl = formCtx.getControl("msdyn_company") || leAttr.controls?.get?.(0);
+        const leTarget = leCtrl?.getEntityTypes?.()[0]; // expect "cdm_company"
+        if (leTarget !== "cdm_company") return; // adjust if your target differs
+
+        const rec = await resolveCdmCompanyByLabel(label);
+        if (!rec) return;
+
+        const withBraces = id => "{" + (id + "").replace(/[{}]/g, "") + "}";
+
+        leAttr.setValue([{
+            id: withBraces(rec.cdm_companyid),
+            name: rec.cdm_name || rec.cdm_companycode || label, // display text
+            entityType: "cdm_company"
+        }]);
+        leAttr.fireOnChange?.();
+    }
+
+    // Helper: resolve a record ID by name for the given target entity
+    async function resolveIdByName(entityLogicalName, label, nameFields) {
+        if (!label) return null;
+        const escaped = label.replace(/'/g, "''");
+        for (const f of nameFields) {
+            const query = `?$select=${entityLogicalName}id,${f}&$top=1&$filter=${encodeURIComponent(`${f} eq '${escaped}'`)}`;
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords(entityLogicalName, query);
+                if (res.entities?.length) return res.entities[0][`${entityLogicalName}id`];
+            } catch (e) { /* try next field */ }
+        }
+        return null;
+    }
+
+    // Resolve and set LEGAL ENTITY lookup
+    await setLegalEntity(formCtx, payload.legalEntity);
+
+    // Resolve and set CONTRACTING UNIT lookup
+    if (cuTarget && payload.contractingUnit) {
+        const cuId = await resolveIdByName(cuTarget, payload.contractingUnit, ["msdyn_name", "name"]);
+        console.log("cuId:", cuId);
+        if (cuId) {
+            formCtx.getAttribute("tcg_contractingunit")?.setValue([{ id: withBraces(cuId), name: payload.contractingUnit, entityType: cuTarget }]);
+            formCtx.getAttribute("tcg_contractingunit")?.fireOnChange?.();
+        }
+    }
+
+    // Set OPTION SETS
+    const msOpt = marketSegmentMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.marketSegment || "").trim().toLowerCase());
+    const indOpt = industryMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.industry || "").trim().toLowerCase());
+    if (msOpt?.value !== undefined) formCtx.getAttribute("tcg_marketsegmentnew")?.setValue(parseInt(msOpt.value, 10));
+    if (indOpt?.value !== undefined) formCtx.getAttribute("tcg_industrynew")?.setValue(parseInt(indOpt.value, 10));
+    formCtx.getAttribute("tcg_marketsegmentnew")?.fireOnChange?.();
+    formCtx.getAttribute("tcg_industrynew")?.fireOnChange?.();
+    // formCtx.getAttribute("tcg_accounttype")?.fireOnChange?.();
+
+    // Save
+    await formCtx.data.save();
+}
+
+
+
+async function openCustomDialog(PrimaryControl) {
 
     localStorage.removeItem("leadRecordData"); // clear the local storage
 
@@ -116,8 +236,8 @@ function openCustomDialog(PrimaryControl) {
     leadId = leadId.replace("{", "").replace("}", "");
     console.log("Lead ID: " + leadId);
 
-    getLeadRecord(leadId); // fetch current lead record data
-    fetchMetaData(PrimaryControl);  // Fetch all meta data
+    await getLeadRecord(leadId); // fetch current lead record data
+    await fetchMetaData(PrimaryControl);  // Fetch all meta data
 
 
     const returnKey = "validateLeadReturn:" + (Xrm.Utility.createGuid ? Xrm.Utility.createGuid() : Date.now().toString());
@@ -131,13 +251,13 @@ function openCustomDialog(PrimaryControl) {
     var navigationOptions = {
         target: 2,
         width: { value: 22, unit: "%" },
-        height: { value: 64, unit: "%" },
+        height: { value: 70, unit: "%" },
         position: 1
     };
 
 
     Xrm.Navigation.navigateTo(pageInput, navigationOptions).then(
-        function (result) {
+        async function (result) {
             // Get payload (support fallback if you used the returnKey/sessionStorage pattern)
             let payload = (result && typeof result === "object") ? result.returnValue : result;
             if (!payload && returnKey) {
@@ -156,53 +276,21 @@ function openCustomDialog(PrimaryControl) {
 
             if (!payload) return;
 
-            var formCtx = PrimaryControl;
 
-            // Load metadata cached earlier
-            const legalEntityMeta = JSON.parse(localStorage.getItem("legalEntityMetaData") || "[]");
-            const contractingUnitMeta = JSON.parse(localStorage.getItem("contractingUnitMetaData") || "[]");
-            const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
-            const industryMeta = JSON.parse(localStorage.getItem("IndustryMetaData") || "[]");
+            try {
 
-            // Map labels -> IDs/values
-            const le = legalEntityMeta.find(x => (x.tcg_owningcompany || "").trim() === (payload.legalEntity || "").trim());
-            const cu = contractingUnitMeta.find(x => (x.msdyn_name || "").trim() === (payload.contractingUnit || "").trim());
-            const msOpt = marketSegmentMeta.find(x => (x.text || "").trim() === (payload.marketSegment || "").trim());
-            const indOpt = industryMeta.find(x => (x.text || "").trim() === (payload.industry || "").trim());
+                // Apply payload to Lead (your existing function that sets fields)
+                await applyPayloadToLead(PrimaryControl, payload);
 
-            // Set Lead lookups
-            if (le) {
-                var legalEntityLookup = new Array();
-                legalEntityLookup[0] = new Object();
-                legalEntityLookup[0].id = le.tcg_companyaddressid;
-                legalEntityLookup[0].name = le.tcg_owningcompany || null;
-                legalEntityLookup[0].entityType = "tcg_companyaddress";
-                formCtx.getAttribute("msdyn_company")?.setValue(legalEntityLookup);
+                await Xrm.Navigation.openAlertDialog(
+                    { title: "Success", text: "Lead validated successfully." },
+                    { height: 120, width: 320, position: 1 }
+                );
+            } catch (e) {
+                await Xrm.Navigation.openErrorDialog({
+                    message: "Failed to save lead. " + (e?.message || e || "")
+                });
             }
-            if (cu) {
-                var contractingUnitLookup = new Array();
-                contractingUnitLookup[0] = new Object();
-                contractingUnitLookup[0].id = cu.msdyn_organizationalunitid;
-                contractingUnitLookup[0].name = cu.msdyn_name || null;
-                contractingUnitLookup[0].entityType = "msdyn_organizationalunit";
-                formCtx.getAttribute("tcg_contractingunit")?.setValue(contractingUnitLookup);
-            }
-
-            // Set Lead option sets
-            if (msOpt && msOpt.value !== undefined) {
-                formCtx.getAttribute("tcg_marketsegmentnew")?.setValue(parseInt(msOpt.value, 10));
-            }
-            if (indOpt && indOpt.value !== undefined) {
-                formCtx.getAttribute("tcg_industrynew")?.setValue(parseInt(indOpt.value, 10));
-            }
-
-            // Fire change and save Lead
-            formCtx.getAttribute("msdyn_company")?.fireOnChange();
-            formCtx.getAttribute("tcg_contractingunit")?.fireOnChange();
-            formCtx.getAttribute("tcg_marketsegmentnew")?.fireOnChange();
-            formCtx.getAttribute("tcg_industrynew")?.fireOnChange();
-            formCtx.data.entity.save();
-
 
         },
         function (error) {
