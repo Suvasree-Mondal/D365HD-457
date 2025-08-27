@@ -3,369 +3,798 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <title>Validate Lead Dialog</title>
-  <style>
-    /* Basic dialog styles */
-    .dialog-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-    }
+    <meta charset="UTF-8">
+    <title>Validate Lead Dialog</title>
+    <!-- <style>
+        /* Basic dialog styles */
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            /* nk  */
+            /* background: rgba(0, 0, 0, 0.45);
+            animation: fadeIn 0.3s ease-in-out; */
+        }
 
-    .dialog-box {
-      background: #fff;
-      border-radius: 12px;
-      width: 500px;
-      max-width: 90vw;
-      padding: 24px;
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
-    }
+        .dialog-box {
+            background: #fff;
+            border-radius: 12px;
+            width: 500px;
+            max-width: 90vw;
+            padding: 24px;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 
-    .dialog-title {
-      font-size: 1.5em;
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+            /* NK  */
+            /* box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            font-family: "Segoe UI", Roboto, sans-serif;
+            animation: slideUp 0.35s ease-out; */
+        }
 
-    .dialog-actions {
-      margin-top: 24px;
-      text-align: right;
-    }
+        .dialog-title {
+            font-size: 1.5em;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
 
-    .dialog-actions button {
-      margin-left: 8px;
-      padding: 8px 16px;
-      font-size: 1em;
-    }
+            /* NK  */
+            /* color: #222222 */
+        }
 
-    .form-group {
-      margin-bottom: 16px;
-    }
+        /* =========================================================
+    * Form Layout (now scrollable) - NK
+    * ======================================================= */
+        #leadForm {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px 24px;
+            /* row gap x column gap */
 
-    .form-group label {
-      display: block;
-      margin-bottom: 4px;
-      font-weight: bold;
-    }
+            /* Form scrollbar: choose one of the height strategies below */
+            max-height: 55vh;
+            /* responsive to viewport height */
+            /* max-height: 420px;   /* or use a fixed max-height if preferred */
 
-    .form-group input,
-    .form-group select {
-      width: 100%;
-      padding: 8px;
-      font-size: 1em;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
+            overflow-y: auto;
+            /* enable vertical scrolling when needed */
+            overflow-x: hidden;
+            /* prevent horizontal scrollbars */
+            scrollbar-gutter: stable both-edges;
+            /* reduce layout shift when scrollbars appear */
+        }
 
-    .error {
-      color: #d32f2f;
-      font-size: 0.9em;
-      margin-top: 4px;
-    }
+        .dialog-actions {
+            margin-top: 24px;
+            text-align: right;
+        }
 
-    .loading {
-      text-align: center;
-      padding: 32px 0;
-    }
-  </style>
+        .dialog-actions button {
+            margin-left: 8px;
+            padding: 8px 16px;
+            font-size: 1em;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            font-size: 1em;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+
+        .error {
+            color: #d32f2f;
+            font-size: 0.9em;
+            margin-top: 4px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 32px 0;
+        }
+    </style> -->
+
+    <style>
+        /* =========================================================
+    * Overlay
+    * ======================================================= */
+        .dialog-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.45);
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        /* =========================================================
+    * Dialog Box
+    * ======================================================= */
+        .dialog-box {
+            width: 100%;
+            /* height: 100%; */
+            max-width: 60%;
+            /* max-height: 50%; */
+            padding: 28px 32px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            font-family: "Segoe UI", Roboto, sans-serif;
+            animation: slideUp 0.35s ease-out;
+        }
+
+        /* =========================================================
+    * Title
+    * ======================================================= */
+        .dialog-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            color: #222222;
+            font-size: 1.5em;
+            font-weight: 600;
+            border-bottom: 1px solid #eeeeee;
+        }
+
+        /* =========================================================
+    * Form Layout (now scrollable)
+    * ======================================================= */
+        #leadForm {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px 24px;
+            /* row gap x column gap */
+
+            /* Form scrollbar: choose one of the height strategies below */
+            max-height: 55vh;
+            /* responsive to viewport height */
+            /* max-height: 420px;   /* or use a fixed max-height if preferred */
+
+            overflow-y: auto;
+            /* enable vertical scrolling when needed */
+            overflow-x: hidden;
+            /* prevent horizontal scrollbars */
+            scrollbar-gutter: stable both-edges;
+            /* reduce layout shift when scrollbars appear */
+        }
+
+        /* Action bar spans full width at the bottom of the scrollable grid */
+        .dialog-actions {
+            grid-column: span 2;
+            margin-top: 8px;
+            text-align: right;
+            margin-right: 20px;
+        }
+
+        /* =========================================================
+    * Form Controls
+    * ======================================================= */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            margin-right: 20px;
+        }
+
+        .form-group label {
+            margin-bottom: 6px;
+            color: #444444;
+            font-size: 0.92em;
+            font-weight: 600;
+        }
+
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            color: #222222;
+            font-size: 0.95em;
+            background: #fafafa;
+            border: 1px solid #cccccc;
+            border-radius: 8px;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus {
+            outline: none;
+            background: #ffffff;
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.2);
+        }
+
+        /* =========================================================
+    * Custom Select Arrow (single icon, no tiling)
+    * ======================================================= */
+        .form-group select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+
+            background-image:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%23999' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px 14px;
+
+            padding-right: 40px;
+            /* space for arrow */
+        }
+
+        .form-group select:focus {
+            background-image:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24'%3E%3Cpath fill='%231976d2' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 14px 14px;
+        }
+
+        /* =========================================================
+    * Option Styling (best-effort; native rendering varies)
+    * ======================================================= */
+        .form-group select option {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            /* may be ignored by some UAs */
+        }
+
+        .form-group select option:hover {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .form-group select option:checked {
+            background-color: #1976d2;
+            color: #ffffff;
+        }
+
+        /* =========================================================
+    * Errors
+    * ======================================================= */
+        .error {
+            margin-top: 4px;
+            color: #d32f2f;
+            font-size: 0.8em;
+            font-style: italic;
+        }
+
+        /* =========================================================
+    * Actions (Buttons)
+    * ======================================================= */
+        .dialog-actions button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            margin-top: 10px;
+            color: #222222;
+            font-size: 0.95em;
+            background: #f1f1f1;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.25s ease, transform 0.15s ease-in-out;
+        }
+
+        .dialog-actions button:last-child {
+            color: #444444;
+            background: #f1f1f1;
+        }
+
+        .dialog-actions button:last-child:hover {
+            background: #e0e0e0;
+        }
+
+        .dialog-actions button:first-child {
+            color: #ffffff;
+            background: #1976d2;
+            font-weight: 500;
+        }
+
+        .dialog-actions button:first-child:hover {
+            background: #1565c0;
+            transform: translateY(-2px);
+        }
+
+        /* =========================================================
+    * Loading
+    * ======================================================= */
+        .loading {
+            grid-column: span 2;
+            padding: 40px 0;
+            color: #666666;
+            font-size: 1em;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        /* =========================================================
+    * Scrollbars (Form + Selects)
+    * ======================================================= */
+        /* Form scrollbar (Firefox) */
+        #leadForm {
+            scrollbar-width: thin;
+            scrollbar-color: #b0b0b0 #f0f0f0;
+            /* thumb track */
+        }
+
+        /* Form scrollbar (WebKit) */
+        #leadForm::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        #leadForm::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+
+        #leadForm::-webkit-scrollbar-thumb {
+            background: #b0b0b0;
+            border-radius: 8px;
+        }
+
+        #leadForm::-webkit-scrollbar-thumb:hover {
+            background: #888888;
+        }
+
+        /* Select dropdown scrollbars (already styled) */
+        select {
+            scrollbar-width: thin;
+            scrollbar-color: #b0b0b0 #f0f0f0;
+        }
+
+        select::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        select::-webkit-scrollbar-track {
+            background: #f0f0f0;
+            border-radius: 8px;
+        }
+
+        select::-webkit-scrollbar-thumb {
+            background: #b0b0b0;
+            border-radius: 8px;
+        }
+
+        select::-webkit-scrollbar-thumb:hover {
+            background: #888888;
+        }
+
+        /* =========================================================
+    * Animations
+    * ======================================================= */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(35px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
 </head>
 
 <body>
-  <div id="validateLeadDialog" class="dialog-overlay" style="display:none;">
-    <div class="dialog-box">
-      <div class="dialog-title">
-        <span>Validate Lead</span>
-        <!-- <button onclick="closeDialog()" title="Close">&times;</button> -->
-      </div>
-      <div id="dialogContent">
-        <div class="loading" id="loadingSpinner">Loading...</div>
-        <form id="leadForm" style="display:none;" autocomplete="off" novalidate>
-          <div class="form-group">
-            <label for="legalEntity">Legal Entity</label>
-            <select id="legalEntity"></select>
-            <div class="error" id="errorLegalEntity"></div>
-          </div>
-          <div class="form-group">
-            <label for="contractingUnit">Contracting Unit</label>
-            <select id="contractingUnit"></select>
-            <div class="error" id="errorContractingUnit"></div>
-          </div>
-          <div class="form-group">
-            <label for="marketSegment">Market Segment</label>
-            <select id="marketSegment"></select>
-            <div class="error" id="errorMarketSegment"></div>
-          </div>
-          <div class="form-group">
-            <label for="industry">Industry</label>
-            <select id="industry"></select>
-            <div class="error" id="errorIndustry"></div>
-          </div>
-          <div class="form-group">
-            <label for="customerGroupId">Customer Group</label>
-            <select id="customerGroupId"></select>
-            <div class="error" id="errorCustomerGroupId"></div>
-          </div>
-          <div class="form-group">
-            <label for="accountType">Account Type</label>
-            <select id="accountType"></select>
-            <div class="error" id="errorAccountType"></div>
-          </div>
-          <div class="dialog-actions">
-            <button type="button" onclick="closeDialog()">Cancel</button>
-            <button type="button" onclick="submitForm()">Submit</button>
-          </div>
-          <div class="error" id="formError"></div>
-        </form>
-      </div>
+    <div id="validateLeadDialog" class="dialog-overlay" style="display:none;">
+        <div class="dialog-box">
+            <div class="dialog-title">
+                <span>Validate Lead</span>
+                <!-- <button onclick="closeDialog()" title="Close">&times;</button> -->
+            </div>
+            <div id="dialogContent">
+                <div class="loading" id="loadingSpinner">Loading...</div>
+                <form id="leadForm" style="display:none;" autocomplete="off" novalidate>
+                    <div class="form-group">
+                        <label for="legalEntity">Legal Entity</label>
+                        <select id="legalEntity"></select>
+                        <div class="error" id="errorLegalEntity"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="contractingUnit">Contracting Unit</label>
+                        <select id="contractingUnit"></select>
+                        <div class="error" id="errorContractingUnit"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="marketSegment">Market Segment</label>
+                        <select id="marketSegment"></select>
+                        <div class="error" id="errorMarketSegment"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="industry">Industry</label>
+                        <select id="industry"></select>
+                        <div class="error" id="errorIndustry"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="customerGroupId">Customer Group</label>
+                        <select id="customerGroupId"></select>
+                        <div class="error" id="errorCustomerGroupId"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="accountType">Account Type</label>
+                        <select id="accountType"></select>
+                        <div class="error" id="errorAccountType"></div>
+                    </div>
+                    <div class="dialog-actions">
+                        <button type="button" onclick="submitForm()">Submit</button>
+                        <button type="button" onclick="closeDialog()">Cancel</button>
+                    </div>
+                    <div class="error" id="formError"></div>
+                </form>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <script>
-    // Show dialog for demo
-    document.getElementById('validateLeadDialog').style.display = 'flex';
-
-    // data loading for all the six fields
-    async function fetchOptions(endpoint, selectedValue) {
-
-      // Creating options for dropdown list of legal entity
-      if (endpoint === 'legalEntities') {
-        // Fetch legal entities from localStorage
+    <script>
         let legalEntitiesMetaData = [];
-        try {
-          legalEntitiesMetaData = JSON.parse(localStorage.getItem("legalEntityMetaData")) || [];
-        } catch (e) {
-          legalEntitiesMetaData = [];
-        }
-        // Map to dropdown options: value = id, label = company code + name
-        const options = legalEntitiesMetaData.map(item => ({
-          value: item.tcg_companyaddressid,
-          label: (item.tcg_owningcompany ? item.tcg_owningcompany : "")
-        }));
-        return Promise.resolve(options);
-      }
-
-      // Creating an options for Contracting unit
-      if (endpoint === 'contractingUnits') {
-        // Fetch all contracting units from local storage
         let contractingUnitsMetaData = [];
+        let leadDataArr = []; // already filled lead form data
 
-        // get the selected legal entity from the form using dom
-        // const selectedLegalEntity = document.getElementById("legalEntity").value;
-        // console.log("Selected Legal Entity in HTML: ", selectedLegalEntity);
-        try {
-          contractingUnitsMetaData = JSON.parse(localStorage.getItem("contractingUnitMetaData")) || [];
-        } catch (e) {
-          contractingUnitsMetaData = [];
+
+        // Show dialog for demo
+        document.getElementById('validateLeadDialog').style.display = 'flex';
+
+        // data loading for all the six fields
+        async function fetchOptions(endpoint, selectedValue) {
+
+            // Creating options for dropdown list of legal entity
+            if (endpoint === 'legalEntities') {
+                // Fetch legal entities from localStorage
+                try {
+                    legalEntitiesMetaData = JSON.parse(localStorage.getItem("legalEntityMetaData")) || [];
+                } catch (e) {
+                    legalEntitiesMetaData = [];
+                }
+                // Map to dropdown options: value = id, label = company code + name
+                const options = legalEntitiesMetaData.map(item => ({
+                    value: item.tcg_companyaddressid,
+                    label: (item.tcg_owningcompany ? item.tcg_owningcompany : "")
+                }));
+                return Promise.resolve(options);
+            }
+
+            // Creating an options for Contracting unit
+            // if (endpoint === 'contractingUnits') {
+
+            //   // Fetch all contracting units from local storage
+            //   try {
+            //     contractingUnitsMetaData = JSON.parse(localStorage.getItem("contractingUnitMetaData")) || [];
+            //   } catch (e) {
+            //     contractingUnitsMetaData = [];
+            //   }
+            //   var options = {};
+            //   if(leadDataArr.length > 0 && leadDataArr.legalEntity){
+            //     // filtering contracting unit based on the selected legal entity in lead form
+            //     contractingUnitsOptions = contractingUnitsMetaData.filter( cu => cu["_tcg_company_value@OData.Community.Display.V1.FormattedValue"] === leadDataArr.legalEntity);
+            //     console.log("Filtered Contracting Units: ", contractingUnitsOptions);
+            //     options = contractingUnitsOptions.map(item => ({
+            //       value: item.msdyn_organizationalunitid,
+            //       label: item.msdyn_name || ""
+            //     }));
+            //   }
+            //   else{ // if no legal entity is selected then show all the meta data of contracting unit as options
+            //     // Map to dropdown options: value = id, label = name
+            //     console.log("I am in else condition.")
+            //     options = contractingUnitsMetaData.map(item => ({
+            //       value: item.msdyn_organizationalunitid,
+            //       label: item.msdyn_name || ""
+            //     }));
+            //     console.log("options: ", options);
+            //   }
+            //   return Promise.resolve(options);
+            // }
+
+            if (endpoint === 'contractingUnits') {
+                let contractingUnitsMetaData = [];
+                try {
+                    contractingUnitsMetaData = JSON.parse(localStorage.getItem("contractingUnitMetaData")) || [];
+                } catch (e) {
+                    contractingUnitsMetaData = [];
+                }
+                // Include companyId and companyName (formatted) for filtering
+                const options = contractingUnitsMetaData.map(item => ({
+                    value: item.msdyn_organizationalunitid,
+                    label: item.msdyn_name || "",
+                    // Use OData lookup convention from FetchXML result
+                    companyId: ((item._tcg_company_value || item.tcg_company || "") + "").replace(/[{}]/g, "").toLowerCase(),
+                    companyName: item["_tcg_company_value@OData.Community.Display.V1.FormattedValue"] || ""
+                }));
+                return Promise.resolve(options);
+            }
+
+            // creating an options of which is already selected in lead
+            if (endpoint === 'customerGroups') {
+                // Map to dropdown options: value = id, label = name
+                const options = [{
+                    value: selectedValue,
+                    label: selectedValue
+                }];
+                return Promise.resolve(options);
+            }
+
+            // creating an options for Account Type which is already selected in lead
+            if (endpoint === 'accountTypes') {
+                // Map to dropdown options: value = id, label = name
+                let accountTypeMetaData = [];
+                try{
+                    accountTypeMetaData = JSON.parse(localStorage.getItem("accountTypeMetaData")) || [];
+                } catch(e){
+                    accountTypeMetaData = [];
+                }
+                const options = accountTypeMetaData.map(item => ({
+                    value: item.value,
+                    label: item.text
+                }));
+                // const options = [{
+                //     value: selectedValue,
+                //     label: selectedValue
+                // }];
+                return Promise.resolve(options);
+            }
+
+            // creating an options for Market Segment
+            if (endpoint === 'marketSegments') {
+                // Fetch market segment options from local storage
+                let marketSegmentsMetaData = [];
+                try {
+                    marketSegmentsMetaData = JSON.parse(localStorage.getItem("marketSegmentMetaData")) || [];
+                } catch (e) {
+                    marketSegmentsMetaData = [];
+                }
+                // Map to dropdown options: value = id, label = name
+                const options = marketSegmentsMetaData.map(item => ({
+                    value: item.value,
+                    label: item.text
+                }));
+                return Promise.resolve(options);
+            }
+
+            // Creating an options for Industry
+            if (endpoint === 'industries') {
+                // Fetch industry options from local storage
+                let industriesMetaData = [];
+                try {
+                    industriesMetaData = JSON.parse(localStorage.getItem("IndustryMetaData")) || [];
+                } catch (e) {
+                    industriesMetaData = [];
+                }
+                // Map to dropdown options: value = id, label = name
+                const options = industriesMetaData.map(item => ({
+                    value: item.value,
+                    label: item.text
+                }));
+                return Promise.resolve(options);
+            }
+
         }
-        // Map to dropdown options: value = id, label = name
-        const options = contractingUnitsMetaData.map(item => ({
-          value: item.msdyn_organizationalunitid,
-          label: item.msdyn_name || ""
-        }));
-        return Promise.resolve(options);
-      }
 
-      // creating an options of which is already selected in lead
-      if (endpoint === 'customerGroups') {
-        // Map to dropdown options: value = id, label = name
-        const options = [{
-          value: selectedValue,
-          label: selectedValue
-        }];
-        return Promise.resolve(options);
-      }
+        // Helper
+        function normalizeGuid(g) { return (g || "").replace(/[{}]/g, "").toLowerCase(); }
 
-      // creating an options for Account Type which is already selected in lead
-      if (endpoint === 'accountTypes') {
-        // Map to dropdown options: value = id, label = name
-        const options = [{
-          value: selectedValue,
-          label: selectedValue
-        }];
-        return Promise.resolve(options);
-      }
+        // setting up the field both autopopulate & manually
+        async function loadDialogOptions() {
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('leadForm').style.display = 'none';
 
-      // creating an options for Market Segment
-      if (endpoint === 'marketSegments') {
-        // Fetch market segment options from local storage
-        let marketSegmentsMetaData = [];
-        try {
-          marketSegmentsMetaData = JSON.parse(localStorage.getItem("marketSegmentMetaData")) || [];
-        } catch (e) {
-          marketSegmentsMetaData = [];
+            // Get lead data from localStorage
+
+            try {
+                leadDataArr = JSON.parse(localStorage.getItem("leadRecordData")) || [];
+            } catch (e) {
+                leadDataArr = [];
+            }
+            // Use first record if available
+            const leadData = leadDataArr.length > 0 ? leadDataArr[0] : {};
+            console.log("HTML - Lead Record Data::", leadData);
+
+            // Fetch all options
+            var [legalEntities, contractingUnits, marketSegments, industries, customerGroups, accountTypes] = await Promise.all([
+                fetchOptions('legalEntities', leadData.legalEntity || ""),
+                fetchOptions('contractingUnits', leadData.contractingUnit || ""),
+                fetchOptions('marketSegments', leadData.marketSegment || ""),
+                fetchOptions('industries', leadData.industry || ""),
+                fetchOptions('customerGroups', leadData.customerGroupId),
+                fetchOptions('accountTypes', leadData.accountType)
+            ]);
+
+
+
+
+            // Populate selects
+            function populateSelect(id, options, selectedValue) {
+                const select = document.getElementById(id);
+                select.innerHTML = '<option value="">Select...</option>';
+                options.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.label;
+                    option.textContent = opt.label;
+
+                    if (selectedValue && selectedValue === opt.label) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+
+            /*
+            
+            populateSelect('legalEntity', legalEntities, leadData.legalEntity || "");
+      
+            // Filtering contracting unit options based on the selection of legal entity
+            // determine the selected legal entity in dialog form
+            const selectedLegalEntity = document.getElementById("legalEntity").value;
+            console.log("Selected Legal Entity in HTML dialog form: ", selectedLegalEntity);
+            contractingUnits = contractingUnitsMetaData.filter(cu => cu["_tcg_company_value@OData.Community.Display.V1.FormattedValue"] === selectedLegalEntity);
+            console.log("Filtered Contracting Units: ", contractingUnits);
+      
+            populateSelect('contractingUnit', contractingUnits, leadData.contractingUnit || "");
+            populateSelect('marketSegment', marketSegments, leadData.marketSegment || "");
+            populateSelect('industry', industries, leadData.industry || "");
+            populateSelect('customerGroupId', customerGroups, leadData.customerGroupId || "");
+            populateSelect('accountType', accountTypes, leadData.accountType || "");
+      
+            */
+
+            // Populate selects
+            populateSelect('legalEntity', legalEntities, leadData.legalEntity || "");
+            populateSelect('marketSegment', marketSegments, leadData.marketSegment || "");
+            populateSelect('industry', industries, leadData.industry || "");
+            populateSelect('customerGroupId', customerGroups, leadData.customerGroupId || "");
+            populateSelect('accountType', accountTypes, leadData.accountType || "");
+
+            // Contracting Unit: filtered on initial load
+            const leSelect = document.getElementById('legalEntity');
+
+            // Helper
+            const norm = s => (s || "").replace(/[{}]/g, "").toLowerCase();
+
+            // Initial filter (preselected LE from lead/localStorage)
+            let selectedLEId = norm(leSelect.value);
+            let selectedLELabel = leSelect.options[leSelect.selectedIndex]?.text || "";
+
+            function filterCUByLE(cuOpts, leId, leLabel) {
+                if (leId) {
+                    const byId = cuOpts.filter(cu => cu.companyId === leId);
+                    if (byId.length) return byId;
+                }
+                if (leLabel) {
+                    const byName = cuOpts.filter(cu => (cu.companyName || "").trim() === (leLabel || "").trim());
+                    if (byName.length) return byName;
+                }
+                return cuOpts; // show all when no LE or no match
+            }
+
+            let contractingUnitsFiltered = filterCUByLE(contractingUnits, selectedLEId, selectedLELabel);
+            populateSelect('contractingUnit', contractingUnitsFiltered, leadData.contractingUnit || "");
+
+            // Re-filter when user changes Legal Entity
+            leSelect.addEventListener('change', function () {
+                const leIdNow = norm(this.value);
+                const leLabelNow = this.options[this.selectedIndex]?.text || "";
+                const cuFiltered = filterCUByLE(contractingUnits, leIdNow, leLabelNow);
+                populateSelect('contractingUnit', cuFiltered, "");
+            });
+
+
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('leadForm').style.display = 'block';
         }
-        // Map to dropdown options: value = id, label = name
-        const options = marketSegmentsMetaData.map(item => ({
-          value: item.value,
-          label: item.text
-        }));
-        return Promise.resolve(options);
-      }
 
-      // Creating an options for Industry
-      if (endpoint === 'industries') {
-        // Fetch industry options from local storage
-        let industriesMetaData = [];
-        try {
-          industriesMetaData = JSON.parse(localStorage.getItem("IndustryMetaData")) || [];
-        } catch (e) {
-          industriesMetaData = [];
+        loadDialogOptions();
+
+        // Parse returnKey passed via pageInput.data
+        function getReturnKey() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const raw = params.get("data");
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                return parsed && parsed.returnKey ? parsed.returnKey : null;
+            } catch (e) { return null; }
         }
-        // Map to dropdown options: value = id, label = name
-        const options = industriesMetaData.map(item => ({
-          value: item.value,
-          label: item.text
-        }));
-        return Promise.resolve(options);
-      }
+        const returnKey = getReturnKey();
 
-    }
-
-    // setting up the field both autopopulate & manually
-    async function loadDialogOptions() {
-      document.getElementById('loadingSpinner').style.display = 'block';
-      document.getElementById('leadForm').style.display = 'none';
-
-      // Get lead data from localStorage
-      let leadDataArr = [];
-      try {
-        leadDataArr = JSON.parse(localStorage.getItem("leadRecordData")) || [];
-      } catch (e) {
-        leadDataArr = [];
-      }
-      // Use first record if available
-      const leadData = leadDataArr.length > 0 ? leadDataArr[0] : {};
-      console.log("HTML - Lead Record Data::", leadData);
-
-      // Fetch all options
-      const [legalEntities, contractingUnits, marketSegments, industries, customerGroups, accountTypes] = await Promise.all([
-        fetchOptions('legalEntities', leadData.legalEntity || ""),
-        fetchOptions('contractingUnits', leadData.contractingUnit || ""),
-        fetchOptions('marketSegments', leadData.marketSegment || ""),
-        fetchOptions('industries', leadData.industry || ""),
-        fetchOptions('customerGroups', leadData.customerGroupId || ""),
-        fetchOptions('accountTypes', leadData.accountType || "")
-      ]);
-
-      // Populate selects
-      function populateSelect(id, options, selectedValue) {
-        const select = document.getElementById(id);
-        select.innerHTML = '<option value="">Select...</option>';
-        options.forEach(opt => {
-          const option = document.createElement('option');
-          option.value = opt.label;
-          option.textContent = opt.label;
-
-          if (selectedValue && selectedValue === opt.label) {
-            option.selected = true;
-          }
-          select.appendChild(option);
-        });
-      }
-
-      populateSelect('legalEntity', legalEntities, leadData.legalEntity || "");
-      populateSelect('contractingUnit', contractingUnits, leadData.contractingUnit || "");
-      populateSelect('marketSegment', marketSegments, leadData.marketSegment || "");
-      populateSelect('industry', industries, leadData.industry || "");
-      populateSelect('customerGroupId', customerGroups, leadData.customerGroupId || "");
-      populateSelect('accountType', accountTypes, leadData.accountType || "");
-
-      document.getElementById('loadingSpinner').style.display = 'none';
-      document.getElementById('leadForm').style.display = 'block';
-    }
-
-    loadDialogOptions();
-
-    // Parse returnKey passed via pageInput.data
-    function getReturnKey() {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const raw = params.get("data");
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return parsed && parsed.returnKey ? parsed.returnKey : null;
-      } catch (e) { return null; }
-    }
-    const returnKey = getReturnKey();
-
-    function closeHostDialog(payload) {
-      // Prefer current frame
-      if (window.Xrm && window.Xrm.Navigation && typeof window.Xrm.Navigation.closeDialog === "function") {
-        window.Xrm.Navigation.closeDialog(payload ?? null);
-        return;
-      }
-      // Parent
-      if (window.parent && window.parent.Xrm && window.parent.Xrm.Navigation && typeof window.parent.Xrm.Navigation.closeDialog === "function") {
-        window.parent.Xrm.Navigation.closeDialog(payload ?? null);
-        return;
-      }
-      // Top
-      if (window.top && window.top.Xrm && window.top.Xrm.Navigation && typeof window.top.Xrm.Navigation.closeDialog === "function") {
-        window.top.Xrm.Navigation.closeDialog(payload ?? null);
-        return;
-      }
-      // Fallback: close icon (will return null to caller)
-      try {
-        const btn = window.parent?.document?.querySelector("button[data-id='dialogCloseIconButton']");
-        if (btn) btn.click();
-      } catch (e) { }
-    }
-
-    function submitForm() {
-      // Simple validation
-      let valid = true;
-      function check(id) {
-        const val = document.getElementById(id).value;
-        const err = document.getElementById('error' + id.charAt(0).toUpperCase() + id.slice(1));
-        if (!val) {
-          err.textContent = 'Required';
-          valid = false;
-        } else {
-          err.textContent = '';
+        function closeHostDialog(payload) {
+            // Prefer current frame
+            if (window.Xrm && window.Xrm.Navigation && typeof window.Xrm.Navigation.closeDialog === "function") {
+                window.Xrm.Navigation.closeDialog(payload ?? null);
+                return;
+            }
+            // Parent
+            if (window.parent && window.parent.Xrm && window.parent.Xrm.Navigation && typeof window.parent.Xrm.Navigation.closeDialog === "function") {
+                window.parent.Xrm.Navigation.closeDialog(payload ?? null);
+                return;
+            }
+            // Top
+            if (window.top && window.top.Xrm && window.top.Xrm.Navigation && typeof window.top.Xrm.Navigation.closeDialog === "function") {
+                window.top.Xrm.Navigation.closeDialog(payload ?? null);
+                return;
+            }
+            // Fallback: close icon (will return null to caller)
+            try {
+                const btn = window.parent?.document?.querySelector("button[data-id='dialogCloseIconButton']");
+                if (btn) btn.click();
+            } catch (e) { }
         }
-      }
-      ['legalEntity', 'contractingUnit', 'marketSegment', 'industry', 'customerGroupId', 'accountType'].forEach(check);
 
-      if (!valid) {
-        document.getElementById('formError').textContent = 'Please fill all required fields.';
-        return;
-      } else {
-        document.getElementById('formError').textContent = '';
-      }
+        function closeDialog() {
+            closeHostDialog(null);
+        }
+        function submitForm() {
+            // Simple validation
+            let valid = true;
+            function check(id) {
+                const val = document.getElementById(id).value;
+                const err = document.getElementById('error' + id.charAt(0).toUpperCase() + id.slice(1));
+                if (!val) {
+                    err.textContent = 'Required';
+                    valid = false;
+                } else {
+                    err.textContent = '';
+                }
+            }
+            ['legalEntity', 'contractingUnit', 'marketSegment', 'industry', 'customerGroupId', 'accountType'].forEach(check);
 
-      // Collect data
-      const data = {
-        legalEntity: document.getElementById('legalEntity').value,
-        contractingUnit: document.getElementById('contractingUnit').value,
-        marketSegment: document.getElementById('marketSegment').value,
-        industry: document.getElementById('industry').value,
-        customerGroupId: document.getElementById('customerGroupId').value,
-        accountType: document.getElementById('accountType').value
-      };
+            if (!valid) {
+                document.getElementById('formError').textContent = 'Please fill all required fields.';
+                return;
+            } else {
+                document.getElementById('formError').textContent = '';
+            }
 
-      // TODO: Send data to server or CRM via AJAX/Web API
+            // Collect data
+            const data = {
+                legalEntity: document.getElementById('legalEntity').value,
+                contractingUnit: document.getElementById('contractingUnit').value,
+                marketSegment: document.getElementById('marketSegment').value,
+                industry: document.getElementById('industry').value,
+                customerGroupId: document.getElementById('customerGroupId').value,
+                accountType: document.getElementById('accountType').value
+            };
 
-      // alert('Submitted:\n' + JSON.stringify(data, null, 2));
+            // Fallback channel for parent to pick up if returnValue ends up null
+            if (returnKey) {
+                try { sessionStorage.setItem(returnKey, JSON.stringify(data)); } catch (e) { }
+            }
 
-      // Fallback channel for parent to pick up if returnValue ends up null
-      if (returnKey) {
-        try { sessionStorage.setItem(returnKey, JSON.stringify(data)); } catch (e) { }
-      }
+            closeHostDialog(data);
 
-      closeHostDialog(data);
-
-    }
-  </script>
+        }
+    </script>
 
 </body>
 
