@@ -219,6 +219,19 @@ async function applyPayloadToLead(formCtx, payload) {
     formCtx.getAttribute("tcg_industrynew")?.fireOnChange?.();
     // formCtx.getAttribute("tcg_accounttype")?.fireOnChange?.();
 
+    // Set ACCOUNT lookup (parentaccountid) if provided
+    try {
+        const accName = (payload.account || "").trim();
+        const accIdRaw = (payload.accountId || "").replace(/[{}]/g, "");
+        if (accName && accIdRaw) {
+            const accountAttr = formCtx.getAttribute("parentaccountid");
+            if (accountAttr) {
+                accountAttr.setValue([{ id: withBraces(accIdRaw), name: accName, entityType: "account" }]);
+                accountAttr.fireOnChange?.();
+            }
+        }
+    } catch (e) { }
+
     // Save
     await formCtx.data.save();
 }
