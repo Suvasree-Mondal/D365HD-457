@@ -1,4 +1,12 @@
 <!-- Example: Validate Lead Dialog as HTML/CSS/JS -->
+<!-- In this version 3, 
+  1. I will handle the population of account name without hyper link for new account  -- done
+  2. Radio button should be disabled if exising account is false -- done
+  3. Account drop down should not be there if existing account is false -- done
+  4. In case of new account customer group id options drop down should be there -- working on it
+  5. In case of existing account, make the account as hyper link
+-->
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -271,9 +279,7 @@
             color: #ffffff;
         }
 
-        /* =========================================================
-    * New: Account status radios + Account field layout
-    * ======================================================= */
+        /* Account Status Radios + Account Field Layout  */
         .full-width {
             grid-column: span 2;
         }
@@ -445,6 +451,25 @@
                         <select id="legalEntity"></select>
                         <div class="error" id="errorLegalEntity"></div>
                     </div>
+                    <div class="form-group full-width">
+                        <label>Account Status</label>
+                        <div class="radio-group" role="radiogroup" aria-label="Account Status">
+                            <label class="radio-option" for="accountStatusActive">
+                                <input type="radio" id="accountStatusActive" name="accountStatus" value="active">
+                                Active
+                            </label>
+                            <label class="radio-option" for="accountStatusInactive">
+                                <input type="radio" id="accountStatusInactive" name="accountStatus" value="inactive">
+                                Inactive
+                            </label>
+                        </div>
+                        <div class="error" id="errorAccountStatus"></div>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="account">Account</label>
+                        <select id="account"></select>
+                        <div class="error" id="errorAccount"></div>
+                    </div>
                     <div class="form-group">
                         <label for="contractingUnit">Contracting Unit</label>
                         <select id="contractingUnit"></select>
@@ -470,25 +495,7 @@
                         <select id="accountType"></select>
                         <div class="error" id="errorAccountType"></div>
                     </div>
-                    <div class="form-group full-width">
-                        <label>Account Status</label>
-                        <div class="radio-group" role="radiogroup" aria-label="Account Status">
-                            <label class="radio-option" for="accountStatusActive">
-                                <input type="radio" id="accountStatusActive" name="accountStatus" value="active">
-                                Active Account
-                            </label>
-                            <label class="radio-option" for="accountStatusInactive">
-                                <input type="radio" id="accountStatusInactive" name="accountStatus" value="inactive">
-                                Inactive Account
-                            </label>
-                        </div>
-                        <div class="error" id="errorAccountStatus"></div>
-                    </div>
-                    <div class="form-group full-width">
-                        <label for="account">Account</label>
-                        <input id="account" type="text" placeholder="Enter account name" />
-                        <div class="error" id="errorAccount"></div>
-                    </div>
+
                     <div class="dialog-actions">
                         <button type="button" onclick="submitForm()">Submit</button>
                         <button type="button" onclick="closeDialog()">Cancel</button>
@@ -527,37 +534,6 @@
                 return Promise.resolve(options);
             }
 
-            // Creating an options for Contracting unit
-            // if (endpoint === 'contractingUnits') {
-
-            //   // Fetch all contracting units from local storage
-            //   try {
-            //     contractingUnitsMetaData = JSON.parse(localStorage.getItem("contractingUnitMetaData")) || [];
-            //   } catch (e) {
-            //     contractingUnitsMetaData = [];
-            //   }
-            //   var options = {};
-            //   if(leadDataArr.length > 0 && leadDataArr.legalEntity){
-            //     // filtering contracting unit based on the selected legal entity in lead form
-            //     contractingUnitsOptions = contractingUnitsMetaData.filter( cu => cu["_tcg_company_value@OData.Community.Display.V1.FormattedValue"] === leadDataArr.legalEntity);
-            //     console.log("Filtered Contracting Units: ", contractingUnitsOptions);
-            //     options = contractingUnitsOptions.map(item => ({
-            //       value: item.msdyn_organizationalunitid,
-            //       label: item.msdyn_name || ""
-            //     }));
-            //   }
-            //   else{ // if no legal entity is selected then show all the meta data of contracting unit as options
-            //     // Map to dropdown options: value = id, label = name
-            //     console.log("I am in else condition.")
-            //     options = contractingUnitsMetaData.map(item => ({
-            //       value: item.msdyn_organizationalunitid,
-            //       label: item.msdyn_name || ""
-            //     }));
-            //     console.log("options: ", options);
-            //   }
-            //   return Promise.resolve(options);
-            // }
-
             if (endpoint === 'contractingUnits') {
                 let contractingUnitsMetaData = [];
                 try {
@@ -590,9 +566,9 @@
             if (endpoint === 'accountTypes') {
                 // Map to dropdown options: value = id, label = name
                 let accountTypeMetaData = [];
-                try{
+                try {
                     accountTypeMetaData = JSON.parse(localStorage.getItem("accountTypeMetaData")) || [];
-                } catch(e){
+                } catch (e) {
                     accountTypeMetaData = [];
                 }
                 const options = accountTypeMetaData.map(item => ({
@@ -642,6 +618,123 @@
 
         }
 
+        // Global default account name for initial preselection
+        let defaultAccountName = "";
+
+        // Get WebApi from host
+        function getWebApi() {
+            return (window.Xrm && window.Xrm.WebApi) ||
+                (window.parent && window.parent.Xrm && window.parent.Xrm.WebApi) ||
+                (window.top && window.top.Xrm && window.top.Xrm.WebApi) ||
+                null;
+        }
+
+        // Resolve cdm_company by label (code or name)
+        async function resolveCdmCompanyByLabel(label) {
+            const webApi = getWebApi();
+            if (!webApi || !label) return null;
+            const esc = label.replace(/'/g, "''");
+            const tries = [
+                `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_companycode eq '${esc}'`)}`,
+                `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_name eq '${esc}'`)}`
+            ];
+            for (const q of tries) {
+                try {
+                    const res = await webApi.retrieveMultipleRecords("cdm_company", q);
+                    if (res.entities && res.entities.length) return res.entities[0];
+                } catch (e) { /* continue */ }
+            }
+            return null;
+        }
+
+        // Fetch accounts filtered by status and legal entity
+        async function fetchAccountsFiltered(statusValue, legalEntityLabel) {
+            const webApi = getWebApi();
+            if (!webApi) return [];
+
+            const statusCode = (statusValue === 'inactive') ? 1 : 0; // Active=0, Inactive=1
+            let companyId = null;
+            try {
+                const comp = await resolveCdmCompanyByLabel(legalEntityLabel);
+                companyId = comp && comp.cdm_companyid ? (comp.cdm_companyid + '').replace(/[{}]/g, '') : null;
+            } catch (e) { companyId = null; }
+
+            const filters = [`statecode eq ${statusCode}`];
+            if (companyId) {
+                // Lookup filter by raw guid on _msdyn_company_value
+                filters.push(`_msdyn_company_value eq ${companyId}`);
+            }
+
+            const filter = filters.join(' and ');
+            const query = `?$select=accountid,name,accountnumber&$orderby=name asc&$top=100&$filter=${encodeURIComponent(filter)}`;
+
+            try {
+                const res = await webApi.retrieveMultipleRecords("account", query);
+                const list = (res.entities || []).map(a => ({
+                    id: (a.accountid + '').replace(/[{}]/g, ''),
+                    name: a.name || '',
+                    number: a.accountnumber || ''
+                }));
+                return list;
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function populateAccountSelect(accounts, selectedName, isExistingAccount) {
+            console.log("Account Name for New Account :: ", selectedName);
+            const select = document.getElementById('account');
+            if (!select) return;
+            select.innerHTML = '<option value="">Select...</option>';
+            accounts?.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.name || '';
+                opt.textContent = a.name || '';
+                if (selectedName && selectedName === a.name) {
+                    opt.selected = true;
+                }
+
+                // preserve id as data attribute in case needed later
+                opt.setAttribute('data-id', a.id || '');
+                select.appendChild(opt);
+            });
+
+            // If leadData.existingAccount === false, just add selectedName as a new option and select it
+            try {
+                if (selectedName && !isExistingAccount) {
+                    const opt = document.createElement('option');
+                    opt.value = selectedName;
+                    opt.textContent = selectedName;
+                    opt.selected = true;
+                    console.log("opt.value :: ", opt.value)
+                    opt.setAttribute('data-id', '');
+                    select.appendChild(opt);
+                } else{
+                    console.log("Else mein jaa rha hai")
+                }
+            } catch (e) {
+                console.error("Error populating account for new account scenario:", e);
+            }
+        }
+
+        async function updateAccountOptions(prefillName, isExistingAccount) {
+            const leSelect = document.getElementById('legalEntity');
+            const statusChecked = document.querySelector('input[name="accountStatus"]:checked');
+            const leLabel = leSelect ? (leSelect.options[leSelect.selectedIndex]?.text || leSelect.value || '') : '';
+            const statusVal = statusChecked ? statusChecked.value : 'active';
+            let accounts = [];
+            console.log("Existing Account :: ", isExistingAccount)
+            if (isExistingAccount){
+                accounts = await fetchAccountsFiltered(statusVal, leLabel);
+                console.log("Inside If conditions")
+            }
+            console.log("Accounts :: ", accounts)
+
+            populateAccountSelect(accounts, prefillName || defaultAccountName, isExistingAccount);
+            // Prevent future forced preselects after first population
+            defaultAccountName = "";
+        }
+
         // Helper
         function normalizeGuid(g) { return (g || "").replace(/[{}]/g, "").toLowerCase(); }
 
@@ -660,6 +753,7 @@
             // Use first record if available
             const leadData = leadDataArr.length > 0 ? leadDataArr[0] : {};
             console.log("HTML - Lead Record Data::", leadData);
+            defaultAccountName = leadData.accountName || "";
 
             // Fetch all options
             var [legalEntities, contractingUnits, marketSegments, industries, customerGroups, accountTypes] = await Promise.all([
@@ -690,24 +784,6 @@
                 });
             }
 
-            /*
-            
-            populateSelect('legalEntity', legalEntities, leadData.legalEntity || "");
-      
-            // Filtering contracting unit options based on the selection of legal entity
-            // determine the selected legal entity in dialog form
-            const selectedLegalEntity = document.getElementById("legalEntity").value;
-            console.log("Selected Legal Entity in HTML dialog form: ", selectedLegalEntity);
-            contractingUnits = contractingUnitsMetaData.filter(cu => cu["_tcg_company_value@OData.Community.Display.V1.FormattedValue"] === selectedLegalEntity);
-            console.log("Filtered Contracting Units: ", contractingUnits);
-      
-            populateSelect('contractingUnit', contractingUnits, leadData.contractingUnit || "");
-            populateSelect('marketSegment', marketSegments, leadData.marketSegment || "");
-            populateSelect('industry', industries, leadData.industry || "");
-            populateSelect('customerGroupId', customerGroups, leadData.customerGroupId || "");
-            populateSelect('accountType', accountTypes, leadData.accountType || "");
-      
-            */
 
             // Populate selects
             populateSelect('legalEntity', legalEntities, leadData.legalEntity || "");
@@ -747,26 +823,45 @@
                 const leLabelNow = this.options[this.selectedIndex]?.text || "";
                 const cuFiltered = filterCUByLE(contractingUnits, leIdNow, leLabelNow);
                 populateSelect('contractingUnit', cuFiltered, "");
+                // Refresh accounts when LE changes
+                updateAccountOptions("", leadData.existingAccount);
             });
 
 
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('leadForm').style.display = 'block';
 
-            // Prefill new fields from lead data if available
+            // Prefill account fields from lead data if available
             try {
-                const accountInput = document.getElementById('account');
-                if (accountInput && leadData.accountName) {
-                    accountInput.value = leadData.accountName;
+                if (leadData.accountName) {
+                    defaultAccountName = leadData.accountName;
                 }
                 const activeRadio = document.getElementById('accountStatusActive');
                 const inactiveRadio = document.getElementById('accountStatusInactive');
-                // Prefer existingAccount boolean if present; otherwise infer from accountNumber presence
-                const isActive = (typeof leadData.existingAccount === 'boolean')
-                    ? leadData.existingAccount
-                    : Boolean(leadData.accountNumber);
-                if (isActive && activeRadio) activeRadio.checked = true;
-                if (!isActive && inactiveRadio) inactiveRadio.checked = true;
+                // Prefill account status radio buttons
+                if (activeRadio && leadData?.accountStatus === "Active") {
+                    activeRadio.checked = true;
+                } else if (inactiveRadio && leadData?.accountStatus === "Inactive") {
+                    inactiveRadio.checked = true;
+                }
+                else if (leadData.accountStatus === false && inactiveRadio) {  // in case of new account
+                    inactiveRadio.checked = true;
+                    activeRadio.disabled = true;
+                    inactiveRadio.disabled = true;
+                }
+                // Initial accounts load based on defaults
+                console.log("defaultAccountName :: ", defaultAccountName);
+                updateAccountOptions(defaultAccountName, leadData.existingAccount);
+            } catch (e) {
+                console.error("Error pre-filling account fields: ", e);
+            }
+
+            // Refresh accounts when status changes
+            try {
+                const radios = document.querySelectorAll('input[name="accountStatus"]');
+                radios.forEach(r => r.addEventListener('change', function () {
+                    updateAccountOptions("", leadData.existingAccount);
+                }));
             } catch (e) { }
         }
 
@@ -835,10 +930,10 @@
                 statusErr.textContent = '';
             }
 
-            // Validate Account text
-            const accountEl = document.getElementById('account');
+            // Validate Account dropdown
+            const accountE1 = document.getElementById('account');
             const accountErr = document.getElementById('errorAccount');
-            if (!accountEl.value || !accountEl.value.trim()) {
+            if (!accountE1.value) {
                 accountErr.textContent = 'Required';
                 valid = false;
             } else {
@@ -853,6 +948,10 @@
             }
 
             // Collect data
+            const accountSelect = document.getElementById('account');
+            const selectedAccountOption = accountSelect ? accountSelect.options[accountSelect.selectedIndex] : null;
+            const selectedAccountId = selectedAccountOption ? (selectedAccountOption.getAttribute('data-id') || '') : '';
+
             const data = {
                 legalEntity: document.getElementById('legalEntity').value,
                 contractingUnit: document.getElementById('contractingUnit').value,
@@ -860,7 +959,8 @@
                 industry: document.getElementById('industry').value,
                 customerGroupId: document.getElementById('customerGroupId').value,
                 accountType: document.getElementById('accountType').value,
-                account: document.getElementById('account').value.trim(),
+                account: document.getElementById('account').value,
+                accountId: selectedAccountId,
                 accountStatus: (document.querySelector('input[name="accountStatus"]:checked') || {}).value
             };
 
