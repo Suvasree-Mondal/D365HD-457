@@ -4151,7 +4151,15 @@ async function applyPayloadToLead(formCtx, payload) {
     if (indOpt?.value !== undefined) formCtx.getAttribute("tcg_industrynew")?.setValue(parseInt(indOpt.value, 10));
     formCtx.getAttribute("tcg_marketsegmentnew")?.fireOnChange?.();
     formCtx.getAttribute("tcg_industrynew")?.fireOnChange?.();
-    // formCtx.getAttribute("tcg_accounttype")?.fireOnChange?.();
+    // Account Type (optionset) from payload
+    try {
+        const accountTypeMeta = JSON.parse(localStorage.getItem("accountTypeMetaData") || "[]");
+        const atOpt = accountTypeMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.accountType || "").trim().toLowerCase());
+        if (atOpt?.value !== undefined) {
+            formCtx.getAttribute("tcg_accounttype")?.setValue(parseInt(atOpt.value, 10));
+            formCtx.getAttribute("tcg_accounttype")?.fireOnChange?.();
+        }
+    } catch (e) { }
 
     // Set ACCOUNT lookup (parentaccountid) if provided
     try {
@@ -4163,6 +4171,27 @@ async function applyPayloadToLead(formCtx, payload) {
                 accountAttr.setValue([{ id: withBraces(accIdRaw), name: accName, entityType: "account" }]);
                 accountAttr.fireOnChange?.();
             }
+        }
+    } catch (e) { }
+
+    // Customer Group Id (lookup/label in dialog). Attempt to resolve to the lookup on lead if present
+    try {
+        const cgLabel = (payload.customerGroupId || "").trim();
+        const cgAttrLogical = "tcg_customergroupidnewone"; // adjust if your schema differs
+        const cgAttr = formCtx.getAttribute(cgAttrLogical);
+        if (cgAttr && cgLabel) {
+            // Try resolve by group id text to msdyn_customergroup record
+            const esc = cgLabel.replace(/'/g, "''");
+            const query = `?$select=msdyn_customergroupid,msdyn_groupid&$top=1&$filter=${encodeURIComponent(`msdyn_groupid eq '${esc}'`)}`;
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords("msdyn_customergroup", query);
+                if (res.entities && res.entities.length) {
+                    const id = res.entities[0].msdyn_customergroupid;
+                    const withBracesLocal = v => "{" + (v + "").replace(/[{}]/g, "") + "}";
+                    cgAttr.setValue([{ id: withBracesLocal(id), name: cgLabel, entityType: "msdyn_customergroup" }]);
+                    cgAttr.fireOnChange?.();
+                }
+            } catch (e) { /* ignore */ }
         }
     } catch (e) { }
 

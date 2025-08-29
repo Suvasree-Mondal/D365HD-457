@@ -468,6 +468,9 @@
                     <div class="form-group full-width">
                         <label for="account">Account</label>
                         <select id="account"></select>
+                        <div id="accountLinkContainer" style="display:none;margin-top:6px;">
+                            <a id="accountLink" href="#" target="_blank" rel="noopener">Open Account</a>
+                        </div>
                         <div class="error" id="errorAccount"></div>
                     </div>
                     <div class="form-group">
@@ -758,6 +761,11 @@
             populateAccountSelect(accounts, prefillName || defaultAccountName, isExistingAccount);
             // Prevent future forced preselects after first population
             defaultAccountName = "";
+
+			// Update hyperlink based on selection when existing account
+			try {
+				updateAccountLinkUI(isExistingAccount);
+			} catch (e) { }
         }
 
         // Helper
@@ -886,6 +894,75 @@
                 }
             });
 
+            // ACCOUNT hyperlink + auto CG for existing account
+            function updateAccountLinkUI(isExistingAccount) {
+                const linkContainer = document.getElementById('accountLinkContainer');
+                const link = document.getElementById('accountLink');
+                const sel = document.getElementById('account');
+                if (!linkContainer || !link || !sel) return;
+
+                const opt = sel.options[sel.selectedIndex];
+                const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                const accountName = opt ? (opt.textContent || '').trim() : '';
+
+                if (!isExistingAccount || !accountId) {
+                    linkContainer.style.display = 'none';
+                    return;
+                }
+                linkContainer.style.display = 'block';
+                link.textContent = accountName ? `Open ${accountName}` : 'Open Account';
+                link.onclick = function (e) {
+                    e.preventDefault();
+                    try {
+                        const X = (window.Xrm || window.parent?.Xrm || window.top?.Xrm);
+                        if (X && X.Navigation && typeof X.Navigation.openForm === 'function') {
+                            X.Navigation.openForm({ entityName: 'account', entityId: accountId }, { openInNewWindow: true });
+                        } else {
+                            const base = (X && X.Utility && X.Utility.getGlobalContext) ? X.Utility.getGlobalContext().getClientUrl() : window.location.origin;
+                            const url = `${base}/main.aspx?etn=account&id=%7B${accountId}%7D&pagetype=entityrecord`;
+                            window.open(url, '_blank');
+                        }
+                    } catch (err) { /* noop */ }
+                };
+            }
+
+            async function fetchAndSetCustomerGroupForAccount(accountId) {
+                try {
+                    const webApi = getWebApi();
+                    if (!webApi || !accountId) return;
+                    const res = await webApi.retrieveRecord('account', accountId, '?$select=msdyn_customergroupid');
+                    const cg = res?.msdyn_customergroupid
+                        || res?.["msdyn_customergroupid@OData.Community.Display.V1.FormattedValue"]
+                        || res?.["_msdyn_customergroupid_value@OData.Community.Display.V1.FormattedValue"]
+                        || res?.["_msdyn_customergroupid_value"]
+                        || '';
+                    const cgSelect = document.getElementById('customerGroupId');
+                    if (!cgSelect) return;
+                    // Replace options with this single value for existing account
+                    cgSelect.innerHTML = '<option value="">Select...</option>';
+                    if (cg) {
+                        const o = document.createElement('option');
+                        o.value = cg;
+                        o.textContent = cg;
+                        o.selected = true;
+                        cgSelect.appendChild(o);
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // On account change: update link and auto-populate CG for existing account
+            const accountSelectEl = document.getElementById('account');
+            if (accountSelectEl) {
+                accountSelectEl.addEventListener('change', function () {
+                    updateAccountLinkUI(leadData.existingAccount);
+                    if (leadData.existingAccount) {
+                        const opt = this.options[this.selectedIndex];
+                        const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                        fetchAndSetCustomerGroupForAccount(accountId);
+                    }
+                });
+            }
+
 
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('leadForm').style.display = 'block';
@@ -911,6 +988,22 @@
                 // Initial accounts load based on defaults
                 console.log("defaultAccountName :: ", defaultAccountName);
                 updateAccountOptions(defaultAccountName, leadData.existingAccount);
+                // After initial load, if existing account, set link and auto CG from selected account
+                if (leadData.existingAccount) {
+                    setTimeout(() => {
+                        try {
+                            const sel = document.getElementById('account');
+                            const opt = sel ? sel.options[sel.selectedIndex] : null;
+                            const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                            if (accountId) {
+                                // function defined below
+                                fetchAndSetCustomerGroupForAccount(accountId);
+                            }
+                            // function defined below
+                            updateAccountLinkUI(true);
+                        } catch (e) { }
+                    }, 0);
+                }
             } catch (e) {
                 console.error("Error pre-filling account fields: ", e);
             }
