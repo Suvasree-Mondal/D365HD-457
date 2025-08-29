@@ -552,13 +552,38 @@
                 return Promise.resolve(options);
             }
 
-            // creating an options of which is already selected in lead
+            // creating options for Customer Group Id
             if (endpoint === 'customerGroups') {
-                // Map to dropdown options: value = id, label = name
-                const options = [{
-                    value: selectedValue,
-                    label: selectedValue
-                }];
+                // Respect existing-account behavior: keep current value only
+                let isExistingAccount = false;
+                try {
+                    const leadDataLocal = JSON.parse(localStorage.getItem("leadRecordData")) || [];
+                    isExistingAccount = !!(leadDataLocal[0] && leadDataLocal[0].existingAccount);
+                } catch (e) { isExistingAccount = false; }
+
+                if (isExistingAccount) {
+                    const options = [{ value: selectedValue, label: selectedValue }];
+                    return Promise.resolve(options);
+                }
+
+                // For new account: pull metadata and prepare full list (filtered later by LE)
+                let customerGroupMeta = [];
+                try {
+                    const raw = JSON.parse(localStorage.getItem("customerGroupIdMetaData")) || {};
+                    const entities = raw.entities || raw || [];
+                    customerGroupMeta = entities.map(item => ({
+                        groupId: item.msdyn_groupid || "",
+                        companyLabel: item["_msdyn_company_value@OData.Community.Display.V1.FormattedValue"] || ""
+                    }));
+                } catch (e) { customerGroupMeta = []; }
+
+                const options = customerGroupMeta
+                    .filter(x => (x.groupId || "").trim() !== "")
+                    .map(x => ({ value: x.groupId, label: x.groupId }))
+                    .reduce((acc, cur) => {
+                        if (!acc.some(o => o.label === cur.label)) acc.push(cur);
+                        return acc;
+                    }, []);
                 return Promise.resolve(options);
             }
 
@@ -814,8 +839,36 @@
                 return cuOpts; // show all when no LE or no match
             }
 
+            // Customer Group filtering based on Legal Entity (new account only)
+            function getCustomerGroupOptionsForLE(leLabel) {
+                // when LE not selected, return all group ids
+                let meta = [];
+                try {
+                    const raw = JSON.parse(localStorage.getItem("customerGroupIdMetaData")) || {};
+                    const entities = raw.entities || raw || [];
+                    meta = entities.map(item => ({
+                        groupId: item.msdyn_groupid || "",
+                        companyLabel: item["_msdyn_company_value@OData.Community.Display.V1.FormattedValue"] || ""
+                    }));
+                } catch (e) { meta = []; }
+
+                const filtered = (leLabel && leLabel.trim()) ? meta.filter(x => (x.companyLabel || "").trim() === leLabel.trim()) : meta;
+                // unique by groupId
+                const options = filtered
+                    .filter(x => (x.groupId || "").trim() !== "")
+                    .map(x => ({ value: x.groupId, label: x.groupId }))
+                    .reduce((acc, cur) => { if (!acc.some(o => o.label === cur.label)) acc.push(cur); return acc; }, []);
+                return options;
+            }
+
             let contractingUnitsFiltered = filterCUByLE(contractingUnits, selectedLEId, selectedLELabel);
             populateSelect('contractingUnit', contractingUnitsFiltered, leadData.contractingUnit || "");
+
+            // For new account, filter initial Customer Group options by current LE (or show all if none)
+            if (!leadData.existingAccount) {
+                const cgInit = getCustomerGroupOptionsForLE(selectedLELabel);
+                populateSelect('customerGroupId', cgInit, leadData.customerGroupId || "");
+            }
 
             // Re-filter when user changes Legal Entity
             leSelect.addEventListener('change', function () {
@@ -825,6 +878,12 @@
                 populateSelect('contractingUnit', cuFiltered, "");
                 // Refresh accounts when LE changes
                 updateAccountOptions("", leadData.existingAccount);
+
+                // For new account, re-filter and CLEAR Customer Group on LE change
+                if (!leadData.existingAccount) {
+                    const cgOpts = getCustomerGroupOptionsForLE(leLabelNow);
+                    populateSelect('customerGroupId', cgOpts, ""); // clear selection
+                }
             });
 
 
