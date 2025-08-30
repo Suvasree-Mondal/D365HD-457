@@ -982,22 +982,18 @@
                 }
                 // Initial accounts load based on defaults
                 console.log("defaultAccountName :: ", defaultAccountName);
-                updateAccountOptions(defaultAccountName, leadData.existingAccount);
+                await updateAccountOptions(defaultAccountName, leadData.existingAccount);
                 // After initial load, if existing account, set link and auto CG from selected account
                 if (leadData.existingAccount) {
-                    setTimeout(() => {
-                        try {
-                            const sel = document.getElementById('account');
-                            const opt = sel ? sel.options[sel.selectedIndex] : null;
-                            const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
-                            if (accountId) {
-                                // function defined below
-                                fetchAndSetCustomerGroupForAccount(accountId);
-                            }
-                            // function defined below
-                            updateAccountLinkUI(true);
-                        } catch (e) { }
-                    }, 0);
+                    try {
+                        const sel = document.getElementById('account');
+                        const opt = sel ? sel.options[sel.selectedIndex] : null;
+                        const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                        if (accountId) {
+                            fetchAndSetCustomerGroupForAccount(accountId);
+                        }
+                        updateAccountLinkUI(true);
+                    } catch (e) { }
                 }
             } catch (e) {
                 console.error("Error pre-filling account fields: ", e);
