@@ -716,14 +716,19 @@
             select.innerHTML = '<option value="">Select...</option>';
             accounts?.forEach(a => {
                 const opt = document.createElement('option');
-                opt.value = a.name || '';
-                opt.textContent = a.name || '';
+                const accountName = a.name || '';
+                const accountNumber = a.number || '';
+                opt.value = accountName;
+                // Show account number as secondary in the visible text (styling inside option is limited)
+                opt.textContent = accountNumber ? `${accountName}  —  ${accountNumber}` : accountName;
                 if (selectedName && selectedName === a.name) {
                     opt.selected = true;
                 }
 
                 // preserve id as data attribute in case needed later
                 opt.setAttribute('data-id', a.id || '');
+                if (accountNumber) opt.setAttribute('data-account-number', accountNumber);
+                opt.title = accountNumber ? `${accountName} (${accountNumber})` : accountName;
                 select.appendChild(opt);
             });
 
