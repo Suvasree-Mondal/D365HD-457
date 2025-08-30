@@ -911,19 +911,14 @@
                 }
                 linkContainer.style.display = 'block';
                 link.textContent = accountName ? `Open ${accountName}` : 'Open Account';
-                link.onclick = function (e) {
-                    e.preventDefault();
-                    try {
-                        const X = (window.Xrm || window.parent?.Xrm || window.top?.Xrm);
-                        if (X && X.Navigation && typeof X.Navigation.openForm === 'function') {
-                            X.Navigation.openForm({ entityName: 'account', entityId: accountId }, { openInNewWindow: true });
-                        } else {
-                            const base = (X && X.Utility && X.Utility.getGlobalContext) ? X.Utility.getGlobalContext().getClientUrl() : window.location.origin;
-                            const url = `${base}/main.aspx?etn=account&id=%7B${accountId}%7D&pagetype=entityrecord`;
-                            window.open(url, '_blank');
-                        }
-                    } catch (err) { /* noop */ }
-                };
+                try {
+                    const X = (window.Xrm || window.parent?.Xrm || window.top?.Xrm);
+                    const base = (X && X.Utility && X.Utility.getGlobalContext) ? X.Utility.getGlobalContext().getClientUrl() : window.location.origin;
+                    const url = `${base}/main.aspx?etn=account&id=%7B${accountId}%7D&pagetype=entityrecord`;
+                    link.setAttribute('href', url);
+                    link.setAttribute('target', '_blank');
+                    link.setAttribute('rel', 'noopener');
+                } catch (err) { /* noop */ }
             }
 
             async function fetchAndSetCustomerGroupForAccount(accountId) {
