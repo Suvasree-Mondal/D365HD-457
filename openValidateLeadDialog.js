@@ -4180,9 +4180,19 @@ async function applyPayloadToLead(formCtx, payload) {
         const cgAttrLogical = "tcg_customergroupidnewone"; // adjust if your schema differs
         const cgAttr = formCtx.getAttribute(cgAttrLogical);
         if (cgAttr && cgLabel) {
-            // Try resolve by group id text to msdyn_customergroup record
+            // Resolve company from payload.legalEntity to disambiguate group by company
+            let companyIdRaw = null;
+            try {
+                const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
+                companyIdRaw = comp && comp.cdm_companyid ? (comp.cdm_companyid + '').replace(/[{}]/g, '') : null;
+            } catch (e) { companyIdRaw = null; }
+
             const esc = cgLabel.replace(/'/g, "''");
-            const query = `?$select=msdyn_customergroupid,msdyn_groupid&$top=1&$filter=${encodeURIComponent(`msdyn_groupid eq '${esc}'`)}`;
+            const filters = [ `msdyn_groupid eq '${esc}'` ];
+            if (companyIdRaw) filters.push(`_msdyn_company_value eq ${companyIdRaw}`);
+            const filter = filters.join(' and ');
+            const query = `?$select=msdyn_customergroupid,msdyn_groupid, _msdyn_company_value&$top=1&$filter=${encodeURIComponent(filter)}`;
+
             try {
                 const res = await Xrm.WebApi.retrieveMultipleRecords("msdyn_customergroup", query);
                 if (res.entities && res.entities.length) {
