@@ -3,8 +3,10 @@
   1. I will handle the population of account name without hyper link for new account  -- done
   2. Radio button should be disabled if exising account is false -- done
   3. Account drop down should not be there if existing account is false -- done
-  4. In case of new account customer group id options drop down should be there -- working on it
-  5. In case of existing account, make the account as hyper link
+  4. In case of new account, customer group id options drop down should be there -- done
+  5. In case of existing account only, make the account field as hyper link, so that user can navigate to the account by clicking on the hyper link of account. By clicking on the link a new tab should open of the account -- needs to fix the issue
+  6. In case of existing account, customer grp id should be auto populate based on selection or change of account, for this fetch the detail of selected account in dialog form and populate the customer grp id
+  7. Account Type, and Customer grp id is not saving in lead, it should be save -- Needs to fix for customer group id
 -->
 
 <!DOCTYPE html>
@@ -441,7 +443,6 @@
         <div class="dialog-box">
             <div class="dialog-title">
                 <span>Validate Lead</span>
-                <!-- <button onclick="closeDialog()" title="Close">&times;</button> -->
             </div>
             <div id="dialogContent">
                 <div class="loading" id="loadingSpinner">Loading...</div>
@@ -468,6 +469,9 @@
                     <div class="form-group full-width">
                         <label for="account">Account</label>
                         <select id="account"></select>
+                        <div id="accountLinkContainer" style="display:none;margin-top:6px;">
+                            <a id="accountLink" href="#" target="_blank" rel="noopener">Open Account</a>
+                        </div>
                         <div class="error" id="errorAccount"></div>
                     </div>
                     <div class="form-group">
@@ -512,7 +516,7 @@
         let leadDataArr = []; // already filled lead form data
 
 
-        // Show dialog for demo
+        // Show dialog 
         document.getElementById('validateLeadDialog').style.display = 'flex';
 
         // data loading for all the six fields
@@ -552,8 +556,15 @@
                 return Promise.resolve(options);
             }
 
+            // creating an options of which is already selected in lead
             // creating options for Customer Group Id
             if (endpoint === 'customerGroups') {
+                // Map to dropdown options: value = id, label = name
+                // const options = [{
+                //     value: selectedValue,
+                //     label: selectedValue
+                // }];
+
                 // Respect existing-account behavior: keep current value only
                 let isExistingAccount = false;
                 try {
@@ -672,6 +683,7 @@
             return null;
         }
 
+        const customerGrpId = "";
         // Fetch accounts filtered by status and legal entity
         async function fetchAccountsFiltered(statusValue, legalEntityLabel) {
             const webApi = getWebApi();
@@ -691,10 +703,13 @@
             }
 
             const filter = filters.join(' and ');
-            const query = `?$select=accountid,name,accountnumber&$orderby=name asc&$top=100&$filter=${encodeURIComponent(filter)}`;
+            // const query = `?$select=accountid,name,accountnumber&$orderby=name asc&$top=100&$filter=${encodeURIComponent(filter)}`; // for top 100 records only
+            const query = `?$select=accountid,_msdyn_customergroupid_value, name,accountnumber&$orderby=name asc&$filter=${encodeURIComponent(filter)}`;
+
 
             try {
                 const res = await webApi.retrieveMultipleRecords("account", query);
+                console.log("Account res :: ", res)
                 const list = (res.entities || []).map(a => ({
                     id: (a.accountid + '').replace(/[{}]/g, ''),
                     name: a.name || '',
@@ -713,14 +728,23 @@
             select.innerHTML = '<option value="">Select...</option>';
             accounts?.forEach(a => {
                 const opt = document.createElement('option');
-                opt.value = a.name || '';
-                opt.textContent = a.name || '';
+                // opt.value = a.name || '';
+                // opt.textContent = a.name || '';
+                const accountName = a.name || '';
+                const accountNumber = a.number || '';
+
+                opt.value = accountName;
+                // Show account number as secondary in the visible text (styling inside option is limited)
+                opt.textContent = accountNumber ? `${accountName} (${accountNumber})` : accountName;
+
                 if (selectedName && selectedName === a.name) {
                     opt.selected = true;
                 }
 
                 // preserve id as data attribute in case needed later
                 opt.setAttribute('data-id', a.id || '');
+                if (accountNumber) opt.setAttribute('data-account-number', accountNumber);
+                opt.title = accountNumber ? `${accountName} (${accountNumber})` : accountName;
                 select.appendChild(opt);
             });
 
@@ -734,7 +758,7 @@
                     console.log("opt.value :: ", opt.value)
                     opt.setAttribute('data-id', '');
                     select.appendChild(opt);
-                } else{
+                } else {
                     console.log("Else mein jaa rha hai")
                 }
             } catch (e) {
@@ -749,7 +773,7 @@
             const statusVal = statusChecked ? statusChecked.value : 'active';
             let accounts = [];
             console.log("Existing Account :: ", isExistingAccount)
-            if (isExistingAccount){
+            if (isExistingAccount) {
                 accounts = await fetchAccountsFiltered(statusVal, leLabel);
                 console.log("Inside If conditions")
             }
@@ -758,6 +782,11 @@
             populateAccountSelect(accounts, prefillName || defaultAccountName, isExistingAccount);
             // Prevent future forced preselects after first population
             defaultAccountName = "";
+
+            // Update hyperlink based on selection when existing account
+			try {
+				updateAccountLinkUI(isExistingAccount);
+			} catch (e) { }
         }
 
         // Helper
@@ -819,6 +848,7 @@
 
             // Contracting Unit: filtered on initial load
             const leSelect = document.getElementById('legalEntity');
+            const accSelect = document.getElementById('account');
 
             // Helper
             const norm = s => (s || "").replace(/[{}]/g, "").toLowerCase();
@@ -871,13 +901,19 @@
             }
 
             // Re-filter when user changes Legal Entity
-            leSelect.addEventListener('change', function () {
-                const leIdNow = norm(this.value);
-                const leLabelNow = this.options[this.selectedIndex]?.text || "";
+            leSelect?.addEventListener('change', function () {
+                // console.log("Legal Entity changed:: ", this.value);
+                const leIdNow = norm(this.value);   // right now it stores the legal entity
+                const leLabelNow = this.options[this.selectedIndex]?.text || "";    // right now stores the legal entity
+                
                 const cuFiltered = filterCUByLE(contractingUnits, leIdNow, leLabelNow);
                 populateSelect('contractingUnit', cuFiltered, "");
                 // Refresh accounts when LE changes
-                updateAccountOptions("", leadData.existingAccount);
+                // updateAccountOptions("", leadData.existingAccount);
+                if (leadData.existingAccount) {
+                    updateAccountOptions("", leadData.existingAccount);
+                }
+
 
                 // For new account, re-filter and CLEAR Customer Group on LE change
                 if (!leadData.existingAccount) {
@@ -886,6 +922,93 @@
                 }
             });
 
+            
+
+            // ACCOUNT hyperlink + auto CG for existing account
+            function updateAccountLinkUI(isExistingAccount) {
+                const linkContainer = document.getElementById('accountLinkContainer');
+                const link = document.getElementById('accountLink');
+                const sel = document.getElementById('account');
+                if (!linkContainer || !link || !sel) return;
+
+                const opt = sel.options[sel.selectedIndex];
+                const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                const accountName = opt ? (opt.textContent || '').trim() : '';
+
+                if (!isExistingAccount || !accountId) {
+                    linkContainer.style.display = 'none';
+                    return;
+                }
+                linkContainer.style.display = 'block';
+                link.textContent = accountName ? `Open ${accountName}` : 'Open Account';
+                try {
+                    const X = (window.Xrm || window.parent?.Xrm || window.top?.Xrm);
+                    const base = (X && X.Utility && X.Utility.getGlobalContext) ? X.Utility.getGlobalContext().getClientUrl() : window.location.origin;
+                    const url = `${base}/main.aspx?etn=account&id=%7B${accountId}%7D&pagetype=entityrecord`;
+                    link.setAttribute('href', url);
+                    link.setAttribute('target', '_blank');
+                    link.setAttribute('rel', 'noopener');
+                } catch (err) { /* noop */ }
+               
+            }
+
+            // fetch & set customer grp id & account type for account  
+            async function fetchAndSetCustomerGroupForAccount(accountId) {
+                try {
+                    const webApi = getWebApi();
+                    if (!webApi || !accountId) return;
+                    const result = await webApi.retrieveMultipleRecords('account', `?$select=_msdyn_customergroupid_value,tcg_accounttype, name,accountnumber &$filter=accountid eq ${accountId}`);
+
+                    const res = (result.entities && result.entities.length) ? result.entities[0] : null;
+                    
+                    const cg = res?.["_msdyn_customergroupid_value@OData.Community.Display.V1.FormattedValue"] || '';
+                    const at = res?.["tcg_accounttype@OData.Community.Display.V1.FormattedValue"] || '';
+
+                    const cgSelect = document.getElementById('customerGroupId');
+                    const atSelect = document.getElementById('accountType');
+
+                    if (!cgSelect) return;
+                    if(!atSelect) return;
+
+                    // Replace options with this single value for existing account
+                    cgSelect.innerHTML = '<option value="">Select...</option>';
+                    atSelect.innerHTML = '<option value="">Select...</option>';
+
+                    // set customer grp id based on account change
+                    if (cg) {
+                        const o = document.createElement('option');
+                        o.value = cg;
+                        o.textContent = cg;
+                        o.selected = true;
+                        cgSelect.appendChild(o);
+                    }
+
+                    // set account type based on account change
+                    if(at){
+                        const o = document.createElement('option');
+                        o.value = at;
+                        o.textContent = at;
+                        o.selected = true;
+                        atSelect.appendChild(o);
+                        console.log("atSelect:: ", atSelect)
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // On account change: update link and auto-populate CG for existing account
+            const accountSelectEl = document.getElementById('account');
+            if (accountSelectEl) {
+                accountSelectEl.addEventListener('change', function () {
+                    updateAccountLinkUI(leadData.existingAccount);
+                    if (leadData.existingAccount) {
+                        const opt = this.options[this.selectedIndex];
+                        console.log("opt:: ", opt)
+                        const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                        console.log("accountId :: ", accountId);
+                        fetchAndSetCustomerGroupForAccount(accountId);
+                    }
+                });
+            }
 
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('leadForm').style.display = 'block';
@@ -910,7 +1033,24 @@
                 }
                 // Initial accounts load based on defaults
                 console.log("defaultAccountName :: ", defaultAccountName);
-                updateAccountOptions(defaultAccountName, leadData.existingAccount);
+                await updateAccountOptions(defaultAccountName, leadData.existingAccount);
+
+                // After initial load, if existing account, set link and auto CG & Account type from selected account
+                if (leadData.existingAccount) {
+                    setTimeout(() => {
+                        try {
+                            const sel = document.getElementById('account');
+                            const opt = sel ? sel.options[sel.selectedIndex] : null;
+                            const accountId = opt ? (opt.getAttribute('data-id') || '').replace(/[{}]/g, '') : '';
+                            if (accountId) {
+                                // Fetch and set customer group & Account Type for the selected account
+                                fetchAndSetCustomerGroupForAccount(accountId);
+                            }
+                            // Update account link UI
+                            updateAccountLinkUI(true);
+                        } catch (e) { }
+                    }, 0);
+                }
             } catch (e) {
                 console.error("Error pre-filling account fields: ", e);
             }
