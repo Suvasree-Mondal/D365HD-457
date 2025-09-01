@@ -809,6 +809,15 @@
             console.log("HTML - Lead Record Data::", leadData);
             defaultAccountName = leadData.accountName || "";
 
+            // Update dialog title with lead full name
+            try {
+                const titleEl = document.querySelector('.dialog-title span');
+                if (titleEl) {
+                    const fullName = (leadData.leadFullName || '').trim();
+                    titleEl.textContent = fullName ? `Validate Lead — ${fullName}` : 'Validate Lead';
+                }
+            } catch (e) { }
+
             // Fetch all options
             var [legalEntities, contractingUnits, marketSegments, industries, customerGroups, accountTypes] = await Promise.all([
                 fetchOptions('legalEntities', leadData.legalEntity || ""),
