@@ -604,12 +604,13 @@
                 let accountTypeMetaData = [];
                 try {
                     accountTypeMetaData = JSON.parse(localStorage.getItem("accountTypeMetaData")) || [];
+                    console.log("Account Type Meta Data in HTML :: ", accountTypeMetaData);
                 } catch (e) {
                     accountTypeMetaData = [];
                 }
                 const options = accountTypeMetaData.map(item => ({
-                    value: item.value,
-                    label: item.text
+                    value: item.value || item.Value,
+                    label: item.text || item.Label
                 }));
                 // const options = [{
                 //     value: selectedValue,
@@ -617,20 +618,21 @@
                 // }];
                 return Promise.resolve(options);
             }
-
+            
             // creating an options for Market Segment
             if (endpoint === 'marketSegments') {
                 // Fetch market segment options from local storage
                 let marketSegmentsMetaData = [];
                 try {
                     marketSegmentsMetaData = JSON.parse(localStorage.getItem("marketSegmentMetaData")) || [];
+                    console.log("Market Segments Meta Data in HTML :: ", marketSegmentsMetaData);
                 } catch (e) {
                     marketSegmentsMetaData = [];
                 }
                 // Map to dropdown options: value = id, label = name
                 const options = marketSegmentsMetaData.map(item => ({
-                    value: item.value,
-                    label: item.text
+                    value: item.value || item.Value,
+                    label: item.text || item.Label
                 }));
                 return Promise.resolve(options);
             }
@@ -641,13 +643,14 @@
                 let industriesMetaData = [];
                 try {
                     industriesMetaData = JSON.parse(localStorage.getItem("IndustryMetaData")) || [];
+                    console.log("Industry Meta Data in HTML :: ", industriesMetaData);
                 } catch (e) {
                     industriesMetaData = [];
                 }
                 // Map to dropdown options: value = id, label = name
                 const options = industriesMetaData.map(item => ({
-                    value: item.value,
-                    label: item.text
+                    value: item.value || item.Value,
+                    label: item.text || item.Label
                 }));
                 return Promise.resolve(options);
             }
