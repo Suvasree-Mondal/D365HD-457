@@ -4277,6 +4277,105 @@ async function applyPayloadToLead(formCtx, payload) {
     await formCtx.data.save();
 }
 
+// Apply dialog payload when invoked from Grid ribbon: update the record via Web API
+async function applyPayloadToLeadGrid(leadId, payload) {
+    if (!payload || !leadId) return;
+
+    const stripBraces = v => (v + "").replace(/[{}]/g, "");
+    const toGuid = v => stripBraces(v || "");
+
+    // Resolve helpers mirroring form path logic
+    async function resolveCdmCompanyByLabel(label) {
+        if (!label) return null;
+        const esc = label.replace(/'/g, "''");
+        const tries = [
+            `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_companycode eq '${esc}'`)}`,
+            `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_name eq '${esc}'`)}`
+        ];
+        for (const q of tries) {
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords("cdm_company", q);
+                if (res.entities?.length) return res.entities[0];
+            } catch (e) { }
+        }
+        return null;
+    }
+
+    async function resolveIdByName(entityLogicalName, label, nameFields) {
+        if (!label) return null;
+        const escaped = label.replace(/'/g, "''");
+        for (const f of nameFields) {
+            const query = `?$select=${entityLogicalName}id,${f}&$top=1&$filter=${encodeURIComponent(`${f} eq '${escaped}'`)}`;
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords(entityLogicalName, query);
+                if (res.entities?.length) return res.entities[0][`${entityLogicalName}id`];
+            } catch (e) { }
+        }
+        return null;
+    }
+
+    // Build update payload
+    const update = {};
+
+    // OptionSets: use cached metadata from preloaded localStorage
+    try {
+        const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
+        const industryMeta = JSON.parse(localStorage.getItem("IndustryMetaData") || "[]");
+        const accountTypeMeta = JSON.parse(localStorage.getItem("accountTypeMetaData") || "[]");
+
+        const msOpt = marketSegmentMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.marketSegment || "").trim().toLowerCase());
+        if (msOpt?.value !== undefined) update["tcg_marketsegmentnew"] = parseInt(msOpt.value, 10);
+
+        const indOpt = industryMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.industry || "").trim().toLowerCase());
+        if (indOpt?.value !== undefined) update["tcg_industrynew"] = parseInt(indOpt.value, 10);
+
+        const atOpt = accountTypeMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.accountType || "").trim().toLowerCase());
+        if (atOpt?.value !== undefined) update["tcg_accounttype"] = parseInt(atOpt.value, 10);
+    } catch (e) { }
+
+    // Lookups
+    // Legal Entity (msdyn_company -> cdm_company)
+    if (payload.legalEntity) {
+        const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
+        if (comp?.cdm_companyid) update["msdyn_company@odata.bind"] = `/cdm_companies(${toGuid(comp.cdm_companyid)})`;
+    }
+
+    // Contracting Unit (tcg_contractingunit -> msdyn_organizationalunit)
+    if (payload.contractingUnit) {
+        const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
+        if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
+    }
+
+    // Parent Account
+    if ((payload.account || "").trim() && (payload.accountId || "").trim()) {
+        update["parentaccountid@odata.bind"] = `/accounts(${toGuid(payload.accountId)})`;
+    }
+
+    // Customer Group (tcg_customergroupidnewone -> msdyn_customergroup)
+    if ((payload.customerGroupId || "").trim()) {
+        let companyIdRaw = null;
+        try {
+            const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
+            companyIdRaw = comp && comp.cdm_companyid ? toGuid(comp.cdm_companyid) : null;
+        } catch (e) { companyIdRaw = null; }
+
+        const esc = payload.customerGroupId.trim().replace(/'/g, "''");
+        const filters = [`msdyn_groupid eq '${esc}'`];
+        if (companyIdRaw) filters.push(`_msdyn_company_value eq ${companyIdRaw}`);
+        const filter = filters.join(' and ');
+        const query = `?$select=msdyn_customergroupid&$top=1&$filter=${encodeURIComponent(filter)}`;
+        try {
+            const res = await Xrm.WebApi.retrieveMultipleRecords("msdyn_customergroup", query);
+            if (res.entities && res.entities.length) {
+                update["tcg_customergroupidnewone@odata.bind"] = `/msdyn_customergroups(${toGuid(res.entities[0].msdyn_customergroupid)})`;
+            }
+        } catch (e) { }
+    }
+
+    // Execute update
+    await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+}
+
 
 
 // calling this function from Form level
@@ -4369,18 +4468,24 @@ async function openCustomDialog(leadId, PrimaryControl, source) {
 
 
             try {
-
-                // Apply payload to Lead form (your existing function that sets fields)
-                await applyPayloadToLead(PrimaryControl, payload);
-
-                await Xrm.Navigation.openAlertDialog(
-                    { title: "Success", text: "Lead validated successfully." },
-                    { height: 120, width: 320, position: 1 }
-                );
-
-                // In this version 3, I will handle the integration of HTML form in Qualify button's code
-                Mscrm.LeadCommandActions.qualifyLeadQuick();
-
+                if (source === "form") {
+                    // Apply to current form
+                    await applyPayloadToLead(PrimaryControl, payload);
+                    await Xrm.Navigation.openAlertDialog(
+                        { title: "Success", text: "Lead validated successfully." },
+                        { height: 120, width: 320, position: 1 }
+                    );
+                    // Keep existing behavior for form ribbon
+                    Mscrm.LeadCommandActions.qualifyLeadQuick();
+                } else if (source === "grid") {
+                    // Persist changes via Web API without needing form context
+                    await applyPayloadToLeadGrid(leadId, payload);
+                    await Xrm.Navigation.openAlertDialog(
+                        { title: "Success", text: "Lead validated successfully." },
+                        { height: 120, width: 320, position: 1 }
+                    );
+                    // Do NOT trigger form-only qualify action here
+                }
             } catch (e) {
                 await Xrm.Navigation.openErrorDialog({
                     message: "Failed to save lead. " + (e?.message || e || "")
