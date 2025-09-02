@@ -4317,6 +4317,15 @@ async function applyPayloadToLeadGrid(leadId, payload) {
     // Build update payload
     const update = {};
 
+    // Retrieve lead metadata to validate lookup presence in this org/env
+    let leadMeta = null;
+    try {
+        leadMeta = await Xrm.Utility.getEntityMetadata("lead", ["tcg_contractingunit", "msdyn_company", "tcg_customergroupidnewone"]);
+    } catch (e) { /* proceed defensively */ }
+    const hasContractingUnitAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_contractingunit"));
+    const hasCompanyAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("msdyn_company"));
+    const hasCustomerGroupAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_customergroupidnewone"));
+
     // OptionSets: use cached metadata from preloaded localStorage
     try {
         const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
@@ -4335,13 +4344,13 @@ async function applyPayloadToLeadGrid(leadId, payload) {
 
     // Lookups
     // Legal Entity (msdyn_company -> cdm_company)
-    if (payload.legalEntity) {
+    if (payload.legalEntity && hasCompanyAttr) {
         const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
         if (comp?.cdm_companyid) update["msdyn_company@odata.bind"] = `/cdm_companies(${toGuid(comp.cdm_companyid)})`;
     }
 
     // Contracting Unit (tcg_contractingunit -> msdyn_organizationalunit)
-    if (payload.contractingUnit) {
+    if (payload.contractingUnit && hasContractingUnitAttr) {
         const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
         if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
     }
@@ -4352,7 +4361,7 @@ async function applyPayloadToLeadGrid(leadId, payload) {
     }
 
     // Customer Group (tcg_customergroupidnewone -> msdyn_customergroup)
-    if ((payload.customerGroupId || "").trim()) {
+    if ((payload.customerGroupId || "").trim() && hasCustomerGroupAttr) {
         let companyIdRaw = null;
         try {
             const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
@@ -4372,8 +4381,33 @@ async function applyPayloadToLeadGrid(leadId, payload) {
         } catch (e) { }
     }
 
-    // Execute update
-    await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+    // No changes resolved? Exit quietly
+    if (Object.keys(update).length === 0) return;
+
+    // Execute update with fallback for unknown nav properties
+    try {
+        await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+    } catch (e) {
+        const msg = (e && (e.message || e._message)) || "";
+        // If server complains about tcg_contractingunit annotation, drop it and retry
+        if (msg.toLowerCase().includes("tcg_contractingunit")) {
+            try {
+                delete update["tcg_contractingunit@odata.bind"];
+                await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+            } catch (e2) {
+                throw e2;
+            }
+        } else if (msg.toLowerCase().includes("tcg_customergroupidnewone")) {
+            try {
+                delete update["tcg_customergroupidnewone@odata.bind"];
+                await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+            } catch (e3) {
+                throw e3;
+            }
+        } else {
+            throw e;
+        }
+    }
 }
 
 
