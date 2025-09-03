@@ -4314,6 +4314,26 @@ async function applyPayloadToLeadGrid(leadId, payload) {
         return null;
     }
 
+    // Resolve an optionset value by label using metadata
+    async function resolveOptionValue(entityLogicalName, attributeLogicalName, label) {
+        if (!label) return null;
+        try {
+            const meta = await Xrm.Utility.getEntityMetadata(entityLogicalName, [attributeLogicalName]);
+            const attr = meta && meta.Attributes && meta.Attributes.get && meta.Attributes.get(attributeLogicalName);
+            const optionSet = attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet));
+            let options = optionSet && (optionSet.Options || optionSet);
+            if (!options || !Array.isArray(options)) return null;
+            const needle = (label || "").trim().toLowerCase();
+            for (const opt of options) {
+                const text = (opt.Label && (opt.Label.UserLocalizedLabel?.Label || (opt.Label.LocalizedLabels && opt.Label.LocalizedLabels[0]?.Label)))
+                    || opt.text || opt.label || "";
+                const value = (opt.Value !== undefined) ? opt.Value : opt.value;
+                if (text && value !== undefined && (text + "").trim().toLowerCase() === needle) return parseInt(value, 10);
+            }
+        } catch (e) { }
+        return null;
+    }
+
     // Build update payload
     const update = {};
 
@@ -4326,7 +4346,7 @@ async function applyPayloadToLeadGrid(leadId, payload) {
     const hasCompanyAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("msdyn_company"));
     const hasCustomerGroupAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_customergroupidnewone"));
 
-    // OptionSets: use cached metadata from preloaded localStorage
+    // OptionSets: prefer cached metadata, then fall back to live metadata
     try {
         const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
         const industryMeta = JSON.parse(localStorage.getItem("IndustryMetaData") || "[]");
@@ -4342,6 +4362,20 @@ async function applyPayloadToLeadGrid(leadId, payload) {
         if (atOpt?.value !== undefined) update["tcg_accounttype"] = parseInt(atOpt.value, 10);
     } catch (e) { }
 
+    // Fill any missing options via live metadata resolution
+    if (update["tcg_marketsegmentnew"] === undefined) {
+        const ms = await resolveOptionValue("lead", "tcg_marketsegmentnew", payload.marketSegment);
+        if (ms !== null) update["tcg_marketsegmentnew"] = ms;
+    }
+    if (update["tcg_industrynew"] === undefined) {
+        const ind = await resolveOptionValue("lead", "tcg_industrynew", payload.industry);
+        if (ind !== null) update["tcg_industrynew"] = ind;
+    }
+    if (update["tcg_accounttype"] === undefined) {
+        const at = await resolveOptionValue("lead", "tcg_accounttype", payload.accountType);
+        if (at !== null) update["tcg_accounttype"] = at;
+    }
+
     // Lookups
     // Legal Entity (msdyn_company -> cdm_company)
     if (payload.legalEntity && hasCompanyAttr) {
@@ -4349,11 +4383,15 @@ async function applyPayloadToLeadGrid(leadId, payload) {
         if (comp?.cdm_companyid) update["msdyn_company@odata.bind"] = `/cdm_companies(${toGuid(comp.cdm_companyid)})`;
     }
 
-    // Contracting Unit (skipped in grid path to avoid undeclared property error)
-    // if (payload.contractingUnit && hasContractingUnitAttr) {
-    //     const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
-    //     if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
-    // }
+    // Contracting Unit (tcg_contractingunit -> msdyn_organizationalunit), only if attribute is a lookup
+    try {
+        const cuAttr = leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_contractingunit");
+        const isLookup = !!(cuAttr && (cuAttr.AttributeTypeName?.Value?.toLowerCase?.() === "lookup" || cuAttr.AttributeType === 6 || cuAttr.Targets || cuAttr.attributeDescriptor?.Targets));
+        if (payload.contractingUnit && hasContractingUnitAttr && isLookup) {
+            const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
+            if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
+        }
+    } catch (e) { }
 
     // Parent Account
     if ((payload.account || "").trim() && (payload.accountId || "").trim()) {
