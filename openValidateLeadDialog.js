@@ -4349,11 +4349,11 @@ async function applyPayloadToLeadGrid(leadId, payload) {
         if (comp?.cdm_companyid) update["msdyn_company@odata.bind"] = `/cdm_companies(${toGuid(comp.cdm_companyid)})`;
     }
 
-    // Contracting Unit (tcg_contractingunit -> msdyn_organizationalunit)
-    if (payload.contractingUnit && hasContractingUnitAttr) {
-        const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
-        if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
-    }
+    // Contracting Unit (skipped in grid path to avoid undeclared property error)
+    // if (payload.contractingUnit && hasContractingUnitAttr) {
+    //     const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
+    //     if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
+    // }
 
     // Parent Account
     if ((payload.account || "").trim() && (payload.accountId || "").trim()) {
