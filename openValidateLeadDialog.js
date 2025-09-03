@@ -4063,8 +4063,16 @@ async function fetchMetaData(PrimaryControl, source) {
         marketSegmentMetaData = await PrimaryControl.getAttribute("tcg_marketsegmentnew").getOptions();
     } else {
         // Use Web API to get OptionSet metadata for grid context
-        marketSegmentMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_marketsegmentnew"])
-            .then(meta => meta.Attributes.get("tcg_marketsegmentnew").attributeDescriptor.OptionSet)
+        marketSegmentMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_marketsegmentnew"]) 
+            .then(meta => {
+                const attr = meta.Attributes.get("tcg_marketsegmentnew");
+                const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
+                const options = optSet.Options || [];
+                return options.map(o => ({
+                    value: (o.Value !== undefined ? o.Value : o.value),
+                    text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
+                })).filter(x => x.value !== undefined);
+            }) 
             .catch(() => []);
     }
     if (marketSegmentMetaData) saveMetaDataToLocalStorage("marketSegmentMetaData", JSON.stringify(marketSegmentMetaData));
@@ -4075,8 +4083,16 @@ async function fetchMetaData(PrimaryControl, source) {
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         IndustryMetaData = await PrimaryControl.getAttribute("tcg_industrynew").getOptions();
     } else {
-        IndustryMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_industrynew"])
-            .then(meta => meta.Attributes.get("tcg_industrynew").attributeDescriptor.OptionSet)
+        IndustryMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_industrynew"]) 
+            .then(meta => {
+                const attr = meta.Attributes.get("tcg_industrynew");
+                const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
+                const options = optSet.Options || [];
+                return options.map(o => ({
+                    value: (o.Value !== undefined ? o.Value : o.value),
+                    text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
+                })).filter(x => x.value !== undefined);
+            }) 
             .catch(() => []);
     }
     if (IndustryMetaData) saveMetaDataToLocalStorage("IndustryMetaData", JSON.stringify(IndustryMetaData));
@@ -4087,8 +4103,16 @@ async function fetchMetaData(PrimaryControl, source) {
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         accountTypeMetaData = await PrimaryControl.getAttribute("tcg_accounttype").getOptions();
     } else {
-        accountTypeMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_accounttype"])
-            .then(meta => meta.Attributes.get("tcg_accounttype").attributeDescriptor.OptionSet)
+        accountTypeMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_accounttype"]) 
+            .then(meta => {
+                const attr = meta.Attributes.get("tcg_accounttype");
+                const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
+                const options = optSet.Options || [];
+                return options.map(o => ({
+                    value: (o.Value !== undefined ? o.Value : o.value),
+                    text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
+                })).filter(x => x.value !== undefined);
+            }) 
             .catch(() => []);
     }
     if (accountTypeMetaData) saveMetaDataToLocalStorage("accountTypeMetaData", JSON.stringify(accountTypeMetaData));
@@ -4389,7 +4413,10 @@ async function applyPayloadToLeadGrid(leadId, payload) {
         const isLookup = !!(cuAttr && (cuAttr.AttributeTypeName?.Value?.toLowerCase?.() === "lookup" || cuAttr.AttributeType === 6 || cuAttr.Targets || cuAttr.attributeDescriptor?.Targets));
         if (payload.contractingUnit && hasContractingUnitAttr && isLookup) {
             const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
-            if (cuId) update["tcg_contractingunit@odata.bind"] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
+            if (cuId) {
+                const cuNav = (cuAttr && (cuAttr.SchemaName || cuAttr.attributeDescriptor?.SchemaName || cuAttr.LogicalName || cuAttr._logicalName)) || "tcg_contractingunit";
+                update[`${cuNav}@odata.bind`] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
+            }
         }
     } catch (e) { }
 
@@ -4556,6 +4583,9 @@ async function openCustomDialog(leadId, PrimaryControl, source) {
                         { title: "Success", text: "Lead validated successfully." },
                         { height: 120, width: 320, position: 1 }
                     );
+                    // Try to refresh the grid so the user sees updated values
+                    try { if (PrimaryControl && typeof PrimaryControl.refresh === "function") await PrimaryControl.refresh(); } catch (e) { }
+                    try { const g = PrimaryControl && PrimaryControl.getGrid && PrimaryControl.getGrid(); if (g && typeof g.refresh === "function") g.refresh(); } catch (e) { }
                     // Do NOT trigger form-only qualify action here
                 }
             } catch (e) {
