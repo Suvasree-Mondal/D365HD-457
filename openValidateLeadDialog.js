@@ -4057,15 +4057,52 @@ async function fetchMetaData(PrimaryControl, source) {
     
     */
 
+    async function getOptionSetOptionsNormalized(entityLogicalName, attributeLogicalName) {
+        try {
+            const meta = await Xrm.Utility.getEntityMetadata(entityLogicalName, [attributeLogicalName]);
+            const attr = meta && meta.Attributes && meta.Attributes.get && meta.Attributes.get(attributeLogicalName);
+            const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
+            const options = optSet.Options || [];
+            return options.map(o => ({
+                value: (o.Value !== undefined ? o.Value : o.value),
+                text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
+            })).filter(x => x.value !== undefined);
+        } catch (e) { return []; }
+    }
+
+    async function fetchOptionSetViaOData(entityLogicalName, attributeLogicalName) {
+        try {
+            const clientUrl = Xrm.Utility.getGlobalContext().getClientUrl();
+            const url = `${clientUrl}/api/data/v9.0/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`;
+            const res = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "OData-MaxVersion": "4.0",
+                    "OData-Version": "4.0",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json; charset=utf-8"
+                },
+                credentials: "same-origin"
+            });
+            if (!res.ok) return [];
+            const data = await res.json();
+            const options = data && data.OptionSet && Array.isArray(data.OptionSet.Options) ? data.OptionSet.Options : [];
+            return options.map(o => ({
+                value: o.Value,
+                text: ((o.Label && (o.Label.UserLocalizedLabel && o.Label.UserLocalizedLabel.Label)) || (o.Label && o.Label.LocalizedLabels && o.Label.LocalizedLabels[0] && o.Label.LocalizedLabels[0].Label) || "")
+            })).filter(x => x.value !== undefined);
+        } catch (e) { return []; }
+    }
+
     // Fetching All Market Segment from lead
     let marketSegmentMetaData;
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         marketSegmentMetaData = await PrimaryControl.getAttribute("tcg_marketsegmentnew").getOptions();
     } else {
-        // Use Web API to get OptionSet metadata for grid context
-        marketSegmentMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_marketsegmentnew"])
-            .then(meta => meta.Attributes.get("tcg_marketsegmentnew").attributeDescriptor.OptionSet)
-            .catch(() => []);
+        marketSegmentMetaData = await getOptionSetOptionsNormalized("lead", "tcg_marketsegmentnew");
+        if (!marketSegmentMetaData || marketSegmentMetaData.length === 0) {
+            marketSegmentMetaData = await fetchOptionSetViaOData("lead", "tcg_marketsegmentnew");
+        }
     }
     if (marketSegmentMetaData) saveMetaDataToLocalStorage("marketSegmentMetaData", JSON.stringify(marketSegmentMetaData));
     else console.log("No Market Segment Meta Data found");
@@ -4075,9 +4112,10 @@ async function fetchMetaData(PrimaryControl, source) {
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         IndustryMetaData = await PrimaryControl.getAttribute("tcg_industrynew").getOptions();
     } else {
-        IndustryMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_industrynew"])
-            .then(meta => meta.Attributes.get("tcg_industrynew").attributeDescriptor.OptionSet)
-            .catch(() => []);
+        IndustryMetaData = await getOptionSetOptionsNormalized("lead", "tcg_industrynew");
+        if (!IndustryMetaData || IndustryMetaData.length === 0) {
+            IndustryMetaData = await fetchOptionSetViaOData("lead", "tcg_industrynew");
+        }
     }
     if (IndustryMetaData) saveMetaDataToLocalStorage("IndustryMetaData", JSON.stringify(IndustryMetaData));
     else console.log("No Industry Meta Data found");
@@ -4087,9 +4125,10 @@ async function fetchMetaData(PrimaryControl, source) {
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         accountTypeMetaData = await PrimaryControl.getAttribute("tcg_accounttype").getOptions();
     } else {
-        accountTypeMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_accounttype"])
-            .then(meta => meta.Attributes.get("tcg_accounttype").attributeDescriptor.OptionSet)
-            .catch(() => []);
+        accountTypeMetaData = await getOptionSetOptionsNormalized("lead", "tcg_accounttype");
+        if (!accountTypeMetaData || accountTypeMetaData.length === 0) {
+            accountTypeMetaData = await fetchOptionSetViaOData("lead", "tcg_accounttype");
+        }
     }
     if (accountTypeMetaData) saveMetaDataToLocalStorage("accountTypeMetaData", JSON.stringify(accountTypeMetaData));
     else console.log("No Account Type Meta Data found");
@@ -4277,6 +4316,180 @@ async function applyPayloadToLead(formCtx, payload) {
     await formCtx.data.save();
 }
 
+// Apply dialog payload when invoked from Grid ribbon: update the record via Web API
+async function applyPayloadToLeadGrid(leadId, payload) {
+    if (!payload || !leadId) return;
+
+    const stripBraces = v => (v + "").replace(/[{}]/g, "");
+    const toGuid = v => stripBraces(v || "");
+
+    // Resolve helpers mirroring form path logic
+    async function resolveCdmCompanyByLabel(label) {
+        if (!label) return null;
+        const esc = label.replace(/'/g, "''");
+        const tries = [
+            `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_companycode eq '${esc}'`)}`,
+            `?$select=cdm_companyid,cdm_name,cdm_companycode&$top=1&$filter=${encodeURIComponent(`cdm_name eq '${esc}'`)}`
+        ];
+        for (const q of tries) {
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords("cdm_company", q);
+                if (res.entities?.length) return res.entities[0];
+            } catch (e) { }
+        }
+        return null;
+    }
+
+    async function resolveIdByName(entityLogicalName, label, nameFields) {
+        if (!label) return null;
+        const escaped = label.replace(/'/g, "''");
+        for (const f of nameFields) {
+            const query = `?$select=${entityLogicalName}id,${f}&$top=1&$filter=${encodeURIComponent(`${f} eq '${escaped}'`)}`;
+            try {
+                const res = await Xrm.WebApi.retrieveMultipleRecords(entityLogicalName, query);
+                if (res.entities?.length) return res.entities[0][`${entityLogicalName}id`];
+            } catch (e) { }
+        }
+        return null;
+    }
+
+    // Resolve an optionset value by label using metadata
+    async function resolveOptionValue(entityLogicalName, attributeLogicalName, label) {
+        if (!label) return null;
+        try {
+            const meta = await Xrm.Utility.getEntityMetadata(entityLogicalName, [attributeLogicalName]);
+            const attr = meta && meta.Attributes && meta.Attributes.get && meta.Attributes.get(attributeLogicalName);
+            const optionSet = attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet));
+            let options = optionSet && (optionSet.Options || optionSet);
+            if (!options || !Array.isArray(options)) return null;
+            const needle = (label || "").trim().toLowerCase();
+            for (const opt of options) {
+                const text = (opt.Label && (opt.Label.UserLocalizedLabel?.Label || (opt.Label.LocalizedLabels && opt.Label.LocalizedLabels[0]?.Label)))
+                    || opt.text || opt.label || "";
+                const value = (opt.Value !== undefined) ? opt.Value : opt.value;
+                if (text && value !== undefined && (text + "").trim().toLowerCase() === needle) return parseInt(value, 10);
+            }
+        } catch (e) { }
+        return null;
+    }
+
+    // Build update payload
+    const update = {};
+
+    // Retrieve lead metadata to validate lookup presence in this org/env
+    let leadMeta = null;
+    try {
+        leadMeta = await Xrm.Utility.getEntityMetadata("lead", ["tcg_contractingunit", "msdyn_company", "tcg_customergroupidnewone"]);
+    } catch (e) { /* proceed defensively */ }
+    const hasContractingUnitAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_contractingunit"));
+    const hasCompanyAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("msdyn_company"));
+    const hasCustomerGroupAttr = !!(leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_customergroupidnewone"));
+
+    // OptionSets: prefer cached metadata, then fall back to live metadata
+    try {
+        const marketSegmentMeta = JSON.parse(localStorage.getItem("marketSegmentMetaData") || "[]");
+        const industryMeta = JSON.parse(localStorage.getItem("IndustryMetaData") || "[]");
+        const accountTypeMeta = JSON.parse(localStorage.getItem("accountTypeMetaData") || "[]");
+
+        const msOpt = marketSegmentMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.marketSegment || "").trim().toLowerCase());
+        if (msOpt?.value !== undefined) update["tcg_marketsegmentnew"] = parseInt(msOpt.value, 10);
+
+        const indOpt = industryMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.industry || "").trim().toLowerCase());
+        if (indOpt?.value !== undefined) update["tcg_industrynew"] = parseInt(indOpt.value, 10);
+
+        const atOpt = accountTypeMeta.find(x => (x.text || "").trim().toLowerCase() === (payload.accountType || "").trim().toLowerCase());
+        if (atOpt?.value !== undefined) update["tcg_accounttype"] = parseInt(atOpt.value, 10);
+    } catch (e) { }
+
+    // Fill any missing options via live metadata resolution
+    if (update["tcg_marketsegmentnew"] === undefined) {
+        const ms = await resolveOptionValue("lead", "tcg_marketsegmentnew", payload.marketSegment);
+        if (ms !== null) update["tcg_marketsegmentnew"] = ms;
+    }
+    if (update["tcg_industrynew"] === undefined) {
+        const ind = await resolveOptionValue("lead", "tcg_industrynew", payload.industry);
+        if (ind !== null) update["tcg_industrynew"] = ind;
+    }
+    if (update["tcg_accounttype"] === undefined) {
+        const at = await resolveOptionValue("lead", "tcg_accounttype", payload.accountType);
+        if (at !== null) update["tcg_accounttype"] = at;
+    }
+
+    // Lookups
+    // Legal Entity (msdyn_company -> cdm_company)
+    if (payload.legalEntity && hasCompanyAttr) {
+        const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
+        if (comp?.cdm_companyid) update["msdyn_company@odata.bind"] = `/cdm_companies(${toGuid(comp.cdm_companyid)})`;
+    }
+
+    // Contracting Unit (tcg_contractingunit -> msdyn_organizationalunit), only if attribute is a lookup
+    try {
+        const cuAttr = leadMeta && leadMeta.Attributes && leadMeta.Attributes.get && leadMeta.Attributes.get("tcg_contractingunit");
+        const isLookup = !!(cuAttr && (cuAttr.AttributeTypeName?.Value?.toLowerCase?.() === "lookup" || cuAttr.AttributeType === 6 || cuAttr.Targets || cuAttr.attributeDescriptor?.Targets));
+        if (payload.contractingUnit && hasContractingUnitAttr && isLookup) {
+            const cuId = await resolveIdByName("msdyn_organizationalunit", payload.contractingUnit, ["msdyn_name", "name"]);
+            if (cuId) {
+                const cuNav = (cuAttr && (cuAttr.SchemaName || cuAttr.attributeDescriptor?.SchemaName || cuAttr.LogicalName || cuAttr._logicalName)) || "tcg_contractingunit";
+                update[`${cuNav}@odata.bind`] = `/msdyn_organizationalunits(${toGuid(cuId)})`;
+            }
+        }
+    } catch (e) { }
+
+    // Parent Account
+    if ((payload.account || "").trim() && (payload.accountId || "").trim()) {
+        update["parentaccountid@odata.bind"] = `/accounts(${toGuid(payload.accountId)})`;
+    }
+
+    // Customer Group (tcg_customergroupidnewone -> msdyn_customergroup)
+    if ((payload.customerGroupId || "").trim() && hasCustomerGroupAttr) {
+        let companyIdRaw = null;
+        try {
+            const comp = await resolveCdmCompanyByLabel(payload.legalEntity);
+            companyIdRaw = comp && comp.cdm_companyid ? toGuid(comp.cdm_companyid) : null;
+        } catch (e) { companyIdRaw = null; }
+
+        const esc = payload.customerGroupId.trim().replace(/'/g, "''");
+        const filters = [`msdyn_groupid eq '${esc}'`];
+        if (companyIdRaw) filters.push(`_msdyn_company_value eq ${companyIdRaw}`);
+        const filter = filters.join(' and ');
+        const query = `?$select=msdyn_customergroupid&$top=1&$filter=${encodeURIComponent(filter)}`;
+        try {
+            const res = await Xrm.WebApi.retrieveMultipleRecords("msdyn_customergroup", query);
+            if (res.entities && res.entities.length) {
+                update["tcg_customergroupidnewone@odata.bind"] = `/msdyn_customergroups(${toGuid(res.entities[0].msdyn_customergroupid)})`;
+            }
+        } catch (e) { }
+    }
+
+    // No changes resolved? Exit quietly
+    if (Object.keys(update).length === 0) return;
+
+    // Execute update with fallback for unknown nav properties
+    try {
+        await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+    } catch (e) {
+        const msg = (e && (e.message || e._message)) || "";
+        // If server complains about tcg_contractingunit annotation, drop it and retry
+        if (msg.toLowerCase().includes("tcg_contractingunit")) {
+            try {
+                delete update["tcg_contractingunit@odata.bind"];
+                await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+            } catch (e2) {
+                throw e2;
+            }
+        } else if (msg.toLowerCase().includes("tcg_customergroupidnewone")) {
+            try {
+                delete update["tcg_customergroupidnewone@odata.bind"];
+                await Xrm.WebApi.updateRecord("lead", toGuid(leadId), update);
+            } catch (e3) {
+                throw e3;
+            }
+        } else {
+            throw e;
+        }
+    }
+}
+
 
 
 // calling this function from Form level
@@ -4369,18 +4582,27 @@ async function openCustomDialog(leadId, PrimaryControl, source) {
 
 
             try {
-
-                // Apply payload to Lead form (your existing function that sets fields)
-                await applyPayloadToLead(PrimaryControl, payload);
-
-                await Xrm.Navigation.openAlertDialog(
-                    { title: "Success", text: "Lead validated successfully." },
-                    { height: 120, width: 320, position: 1 }
-                );
-
-                // In this version 3, I will handle the integration of HTML form in Qualify button's code
-                Mscrm.LeadCommandActions.qualifyLeadQuick();
-
+                if (source === "form") {
+                    // Apply to current form
+                    await applyPayloadToLead(PrimaryControl, payload);
+                    await Xrm.Navigation.openAlertDialog(
+                        { title: "Success", text: "Lead validated successfully." },
+                        { height: 120, width: 320, position: 1 }
+                    );
+                    // Keep existing behavior for form ribbon
+                    Mscrm.LeadCommandActions.qualifyLeadQuick();
+                } else if (source === "grid") {
+                    // Persist changes via Web API without needing form context
+                    await applyPayloadToLeadGrid(leadId, payload);
+                    await Xrm.Navigation.openAlertDialog(
+                        { title: "Success", text: "Lead validated successfully." },
+                        { height: 120, width: 320, position: 1 }
+                    );
+                    // Try to refresh the grid so the user sees updated values
+                    try { if (PrimaryControl && typeof PrimaryControl.refresh === "function") await PrimaryControl.refresh(); } catch (e) { }
+                    try { const g = PrimaryControl && PrimaryControl.getGrid && PrimaryControl.getGrid(); if (g && typeof g.refresh === "function") g.refresh(); } catch (e) { }
+                    // Do NOT trigger form-only qualify action here
+                }
             } catch (e) {
                 await Xrm.Navigation.openErrorDialog({
                     message: "Failed to save lead. " + (e?.message || e || "")
