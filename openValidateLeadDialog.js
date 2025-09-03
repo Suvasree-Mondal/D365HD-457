@@ -4057,23 +4057,52 @@ async function fetchMetaData(PrimaryControl, source) {
     
     */
 
+    async function getOptionSetOptionsNormalized(entityLogicalName, attributeLogicalName) {
+        try {
+            const meta = await Xrm.Utility.getEntityMetadata(entityLogicalName, [attributeLogicalName]);
+            const attr = meta && meta.Attributes && meta.Attributes.get && meta.Attributes.get(attributeLogicalName);
+            const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
+            const options = optSet.Options || [];
+            return options.map(o => ({
+                value: (o.Value !== undefined ? o.Value : o.value),
+                text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
+            })).filter(x => x.value !== undefined);
+        } catch (e) { return []; }
+    }
+
+    async function fetchOptionSetViaOData(entityLogicalName, attributeLogicalName) {
+        try {
+            const clientUrl = Xrm.Utility.getGlobalContext().getClientUrl();
+            const url = `${clientUrl}/api/data/v9.0/EntityDefinitions(LogicalName='${entityLogicalName}')/Attributes(LogicalName='${attributeLogicalName}')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$select=LogicalName&$expand=OptionSet($select=Options)`;
+            const res = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "OData-MaxVersion": "4.0",
+                    "OData-Version": "4.0",
+                    "Accept": "application/json",
+                    "Content-Type": "application/json; charset=utf-8"
+                },
+                credentials: "same-origin"
+            });
+            if (!res.ok) return [];
+            const data = await res.json();
+            const options = data && data.OptionSet && Array.isArray(data.OptionSet.Options) ? data.OptionSet.Options : [];
+            return options.map(o => ({
+                value: o.Value,
+                text: ((o.Label && (o.Label.UserLocalizedLabel && o.Label.UserLocalizedLabel.Label)) || (o.Label && o.Label.LocalizedLabels && o.Label.LocalizedLabels[0] && o.Label.LocalizedLabels[0].Label) || "")
+            })).filter(x => x.value !== undefined);
+        } catch (e) { return []; }
+    }
+
     // Fetching All Market Segment from lead
     let marketSegmentMetaData;
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         marketSegmentMetaData = await PrimaryControl.getAttribute("tcg_marketsegmentnew").getOptions();
     } else {
-        // Use Web API to get OptionSet metadata for grid context
-        marketSegmentMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_marketsegmentnew"]) 
-            .then(meta => {
-                const attr = meta.Attributes.get("tcg_marketsegmentnew");
-                const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
-                const options = optSet.Options || [];
-                return options.map(o => ({
-                    value: (o.Value !== undefined ? o.Value : o.value),
-                    text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
-                })).filter(x => x.value !== undefined);
-            }) 
-            .catch(() => []);
+        marketSegmentMetaData = await getOptionSetOptionsNormalized("lead", "tcg_marketsegmentnew");
+        if (!marketSegmentMetaData || marketSegmentMetaData.length === 0) {
+            marketSegmentMetaData = await fetchOptionSetViaOData("lead", "tcg_marketsegmentnew");
+        }
     }
     if (marketSegmentMetaData) saveMetaDataToLocalStorage("marketSegmentMetaData", JSON.stringify(marketSegmentMetaData));
     else console.log("No Market Segment Meta Data found");
@@ -4083,17 +4112,10 @@ async function fetchMetaData(PrimaryControl, source) {
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         IndustryMetaData = await PrimaryControl.getAttribute("tcg_industrynew").getOptions();
     } else {
-        IndustryMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_industrynew"]) 
-            .then(meta => {
-                const attr = meta.Attributes.get("tcg_industrynew");
-                const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
-                const options = optSet.Options || [];
-                return options.map(o => ({
-                    value: (o.Value !== undefined ? o.Value : o.value),
-                    text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
-                })).filter(x => x.value !== undefined);
-            }) 
-            .catch(() => []);
+        IndustryMetaData = await getOptionSetOptionsNormalized("lead", "tcg_industrynew");
+        if (!IndustryMetaData || IndustryMetaData.length === 0) {
+            IndustryMetaData = await fetchOptionSetViaOData("lead", "tcg_industrynew");
+        }
     }
     if (IndustryMetaData) saveMetaDataToLocalStorage("IndustryMetaData", JSON.stringify(IndustryMetaData));
     else console.log("No Industry Meta Data found");
@@ -4103,17 +4125,10 @@ async function fetchMetaData(PrimaryControl, source) {
     if (source === "form" && typeof PrimaryControl.getAttribute === "function") {
         accountTypeMetaData = await PrimaryControl.getAttribute("tcg_accounttype").getOptions();
     } else {
-        accountTypeMetaData = await Xrm.Utility.getEntityMetadata("lead", ["tcg_accounttype"]) 
-            .then(meta => {
-                const attr = meta.Attributes.get("tcg_accounttype");
-                const optSet = (attr && (attr.OptionSet || (attr.attributeDescriptor && attr.attributeDescriptor.OptionSet))) || {};
-                const options = optSet.Options || [];
-                return options.map(o => ({
-                    value: (o.Value !== undefined ? o.Value : o.value),
-                    text: ((o.Label && (o.Label.UserLocalizedLabel?.Label || (o.Label.LocalizedLabels && o.Label.LocalizedLabels[0]?.Label))) || o.text || o.label || "")
-                })).filter(x => x.value !== undefined);
-            }) 
-            .catch(() => []);
+        accountTypeMetaData = await getOptionSetOptionsNormalized("lead", "tcg_accounttype");
+        if (!accountTypeMetaData || accountTypeMetaData.length === 0) {
+            accountTypeMetaData = await fetchOptionSetViaOData("lead", "tcg_accounttype");
+        }
     }
     if (accountTypeMetaData) saveMetaDataToLocalStorage("accountTypeMetaData", JSON.stringify(accountTypeMetaData));
     else console.log("No Account Type Meta Data found");
